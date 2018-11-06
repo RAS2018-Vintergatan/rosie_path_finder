@@ -1,6 +1,6 @@
 #from feature import *
 import rospy
-from std_msgs.msg import String, Float32, Header
+from std_msgs.msg import String, Float32, Header, Int8
 
 from tf.msg import transform_broadcaster
 from geometry_msgs.msg import Point, Twist, PoseStamped, Pose
@@ -9,7 +9,7 @@ from nav_msgs.msg import OccupancyGrid, Odometry, Path
 from visulalization_msgs.msg import MarkerArray, Marker
 
 
-import sys, random, math, pygame, time, threading, datetime
+import sys, random, math, time, threading, datetime
 
 from math import sqrt ,cos ,sin ,atan2 ,exp
 from array import *
@@ -19,6 +19,7 @@ from lineIntersect import *
 XDIM = 480
 YDIM = 480
 WINSIZE = [XDIM, YDIM]
+HOME = [20 20]
 EPSILON = 50.0
 NUMNODES = 2000
 RADIUS = 50
@@ -29,11 +30,10 @@ distance = 0
 resolution = 0.01
 # f=0
 # t=0
-finalpathx = array('d', [])
-finalpathy = array('d', [])
 OBS= []
-posBat = []
-posObj = []
+obsList = []
+batList = []
+objList = []
 startx = 0
 starty = 0
 
@@ -45,6 +45,8 @@ isGrabbed = 0
 MarkerArray objects = []
 MarkerArray batteries = []
 Odometry pose
+
+lastMode = "home"
 
 def angle(p1, p2):
     return atan2(p2[1] - p1[1], p2[0] - p1[0])
@@ -123,7 +125,7 @@ def chooseParent(nn, newnode, nodes):
     return newnode, nn
 
 
-def reWire(nodes, newnode, pygame, screen):
+def reWire(nodes, newnode):
     white = 255, 240, 200
     black = 20, 20, 40
     for i in range(len(nodes)):
@@ -157,7 +159,7 @@ class Node:
         self.x = xcoord
         self.y = ycoord
 
-def trySolutionPath(start, goal, nodes, pygame, screen):
+def trySolutionPath(start, goal, nodes):
     path = [[goal.x, goal.y]]
     while nodes[goalind].parent is not None:
         node = nodes[goalind]
@@ -198,7 +200,7 @@ def objListCallback(data):
 			objects[i] = testObj[i]
         #skip some steps here
         for i in range(len(posx)):
-            posObj.append((posx(i),posy(i)))
+            objList.append((posx(i),posy(i)))
 
 def batListCallback(data):
 	int posx[] = { 0.80, 2.50}
@@ -232,11 +234,11 @@ def batListCallback(data):
 		testObj.frame_locked = false
 		batteries[i] = testObj[i]
     #skip some steps here
-    for i in range(len(posx)):
-        rx = batteries[i].scale.x
-        ry = batteries[i].scale.y
-        posBat.append((posx(i),posy(i)))
-        OBS.append((posx(i)-rx,posy(i)-ry,posx(i)+rx,posy(i)+ry))
+#    for i in range(len(posx)):
+#        rx = batteries[i].scale.x
+#        ry = batteries[i].scale.y
+#        batList.append((posx(i),posy(i)))
+#        OBS.append((posx(i)-rx,posy(i)-ry,posx(i)+rx,posy(i)+ry))
 
 def odomCallback(data):
     pose = data
@@ -244,9 +246,12 @@ def odomCallback(data):
         startx = pose.pose.pose.position.x
         starty = pose.pose.pose.position.y
 
+def checkEndpoint(pose, state):
+
     if pose.pose.pose.position.x == xpoint and pose.pose.pose.position.y == ypoint:
         complete = True
-        self.grab_pub.publish(1)
+        self.grab_pub.publish(state)
+
 
 def publishPath(pathx, pathy):
     Path path
@@ -303,41 +308,15 @@ def publishPath(pathx, pathy):
 def grabCallback(data):
     isGrabbed = data
 
-def wallCallback(data):
+def wallCallback(data): # assumes message float32 with [widht, height, x1_1 y1_1, x2_1, y2_1, x1_2,.....]
+    width = data(0)
+    height = data(1)
+    data = data(2:)
     for d in range(len(data)):
         OBS.append((data(d),data(d+1),data(d+2),data(d+3)))
         d = d+4
 
-def mainpfast():
-    print(__file__ + " start!!")
-    rospy.init_node('rosie_rrt', anonymous=True)
-
-	grid_pub = rospy.Publisher('rosie_path_grid',OccupancyGrid, queue_size=10) # visualize object grid
-	wall_sub = rospy.Subscriber('walls', Float32, wallCallback) # get obstacles
-    objList_sub = rospy.Subscriber('visualization_marker', MarkerArray, objListCallback) # get objects / obstacles
-    bat_sub = rospy.Subscriber('visualization_marker_battery', MarkerArray, batListCallback) # get bat obstacles
-	odom_sub = rospy.Subscriber('odom', Odometry, odomCallback) # for check position and end of path
-    grab_sub = rospy.Subscriber('grabState',Bool, grabCallback)
-    grab_pub = rospy.Publisher('grabState',Bool, queue_size=10)
-    global path_pub = rospy.Publisher('rosie_path', Path, queue_size=100)
-
-    # xpoint, ypoint, complete
-    # initialize and prepare screen
-
-    mode = "goto" #others are "home" or "explore"
-    if mode == "goto":
-        #sorting eventually
-        xpoint = posObj[0][0]/resolution
-        ypoint = posObj[0][1]/resolution
-    else if mode == "home":
-        xpoint = 0.2/resolution
-        ypoint = 0.2/resolution
-    else if mode == "explore":
-        for i in posObj:
-            OBS.append(i)
-        #extract nodes from map - Random generated points
-
-    global startx, starty, distance, finalpathx, finalpathy
+def calculatePath(startx, starty, OBS):
     start_time = rospy.get_rostime()#time.time()
     while(complete):
 
@@ -374,7 +353,7 @@ def mainpfast():
             if checkIntersect(nn, rand, OBS):
                 [newnode, nn] = chooseParent(nn, newnode, nodes)
                 nodes.append(newnode)
-                nodes = reWire(nodes, newnode, pygame, screen)
+                nodes = reWire(nodes, newnode)
 
             if (dist([newnode.x, newnode.y], [goal.x, goal.y]) < 25.0):
                 ctr_neargoal = 1
@@ -382,16 +361,90 @@ def mainpfast():
                 ctr = 0
         finalpathx = []
         finalpathy = []
+        return finalpath = [finalpathx, finalpathy]
 
-        print("The time taken to plot the request is", time.time() - start_time)
-        time.sleep(10)
-        startx = xpoint
-        starty = ypoint
-        print("The distance traversed is", distance)
+def generate_random_path(OBS):
+    randPathX = [50, 380, 380, 450, 450, 450, 120, 120, 140, 120, 120, 50]
+    randPathY = [400, 400, 200, 200, 400, 50, 50, 100, 100, 100, 50, 50]
+    genPathX = []
+    genPathY = []
+    for i in range(len(randPathX)):
+        [tempPathX, tempPathY] = calculatePath(randPathX[i], randPathY[i], OBS)
+        for i in tempPathX:
+            genPathX.append(i)
+        for i in tempPathY:
+            genPathY.append(i)
+    publishPath(genPathX, genPathY)
 
-        publishPath(finalpathx, finalpathy)
+def mainpfast():
+    print(__file__ + " start!!")
+    rospy.init_node('rosie_rrt', anonymous=True)
 
-        complete = 0
+	wall_sub = rospy.Subscriber('walls', Float32, wallCallback) # get obstacles
+    objList_sub = rospy.Subscriber('visualization_marker', MarkerArray, objListCallback) # get objects / obstacles
+    bat_sub = rospy.Subscriber('visualization_marker_battery', MarkerArray, batListCallback) # get bat obstacles
+	odom_sub = rospy.Subscriber('odom', Odometry, odomCallback) # for check position and end of path
+    grab_sub = rospy.Subscriber('grabState',Int8, grabCallback) # TODO: Implement msg in Grabber. Interpret 1 as grab, if grabbed --> 2. 0 is open
+	global grid_pub = rospy.Publisher('rosie_path_grid',OccupancyGrid, queue_size=10) # visualize object grid
+    global grab_pub = rospy.Publisher('grabState',Int8, queue_size=10)
+    global path_pub = rospy.Publisher('rosie_path', Path, queue_size=100)
+
+    rate = rospy.Rate(10)
+    # xpoint, ypoint, complete
+    # initialize and prepare screen
+    while not rospy.is_shutdown():
+        global startx, starty, distance, finalpathx, finalpathy
+        global mode = "goto" #others are "home" or "explore"
+        if mode == "goto": # goes to first element, rest is obstacle
+            #sorting eventually
+            xpoint = objList[0][0]/resolution
+            ypoint = objList[0][1]/resolution
+            OBS = obsList + batList + objList[1:]
+            [finalpathx, finalpathy] = calculatePath(OBS)
+            publishPath()
+            mode = "wait"
+            lastMode = "goto"
+            startx = xpoint
+            starty = ypoint
+        else if mode == "home":
+            xpoint = 0.2/resolution
+            ypoint = 0.2/resolution
+            OBS = obsList + batList + objList[1:]
+            [finalpathx, finalpathy] = calculatePath(OBS)
+            publishPath()
+            mode = "wait"
+            lastMode = "home"
+            startx = xpoint
+            starty = ypoint
+            complete = 0
+        else if mode == "explore":
+            OBS = obsList + batList + objList
+            generate_random_path()
+            #extract nodes from map - Random generated points
+            lastMode = "explore"
+            mode = "wait"
+            startx = xpoint
+            starty = ypoint
+        else if mode == "wait":
+            rospy.wait_for_service('new_Path', 1)
+            try:
+                new_path = rospy.ServiceProxy('new_Path', CalNewPath)
+                state = new_path(s)
+            except rospy.ServiceException, e:
+                print "Path Serice call failed: %s"%e
+            if state == 1:
+                startx = pose.pose.pose.position.x
+                starty = pose.pose.pose.position.y
+                mode = "goto"
+                lastMode = "wait"
+        if isGrabbed == 1 and state == "wait":
+            checkEndpoint(1)
+        else if isGrabbed == 0 and (state == "goto" or state == "home"):
+            checkEndpoint(0)
+
+
+        Rate.sleep(10)
+
 
 if __name__ == '__main__':
 
