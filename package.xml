@@ -1,5 +1,5 @@
 <package>
- <name>rosie_map_controller</name>
+ <name>rosie_path_finder</name>
   <version>0.1.0</version>
   <description>
     Local, global map + update.
