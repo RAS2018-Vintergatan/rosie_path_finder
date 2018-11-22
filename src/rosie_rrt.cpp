@@ -20,14 +20,18 @@
 #include <visualization_msgs/Marker.h>
 
 #include <tf/transform_broadcaster.h>
+#include <tf/transform_listener.h>
 
 #include <math.h>
 #include <stdlib.h>
 #include <algorithm>
+#include <vector>
+#include<iterator>
 #include <string>
 
 #include <rosie_servo_controller/ControlGates.h>
 #include <rosie_map_controller/RequestRerun.h>
+#include <rosie_map_controller/StartRRT.h>
 
 // RRT parameter
 float PI = 3.1415926f;
@@ -43,6 +47,8 @@ float robotsize = 0.2f;
 
 // Publisher
 ros::Publisher path_pub;
+ros::ServiceClient gateClient;
+rosie_servo_controller::ControlGates gateSrv;
 
 // Objects and Obstacles (Walls and Batteries)
 std::vector<float> wallArray;
@@ -241,16 +247,17 @@ void currentPoseCallback(nav_msgs::Odometry msg){ // for re-calculation of the p
 }
 
 bool gotTarget = 0;
-boost::shared_ptr<geometry_msgs::PoseStamped> rviz_pose;
-boost::shared_ptr<tf::TransformListener> target_tfl_ptr;
-void rvizTargetPoseCallback(const geometry_msgs::PoseStamped& msg){
-	*rviz_pose = msg;
-	try{
-		(*target_tfl_ptr).waitForTransform("world", msg.header.frame_id, ros::Time(0), ros::Duration(10.0));
-		(*target_tfl_ptr).lookupTransform("world", msg.header.frame_id, ros::Time(0), *target_pose_tf_ptr);
-	}catch(tf::TransformException ex){
-		ROS_ERROR("%s",ex.what());
-	}
+geometry_msgs::PoseStamped rviz_pose;
+//boost::shared_ptr<tf::TransformListener> target_tfl_ptr;
+//boost::shared_ptr<tf::StampedTransform> target_pose_tf_ptr;
+void rvizTargetPoseCallback(geometry_msgs::PoseStamped msg){
+	rviz_pose = msg;
+	//try{
+	//	(*target_tfl_ptr).waitForTransform("world", msg.header.frame_id, ros::Time(0), ros::Duration(10.0));
+	//	(*target_tfl_ptr).lookupTransform("world", msg.header.frame_id, ros::Time(0), *target_pose_tf_ptr);
+	//}catch(tf::TransformException ex){
+	//	ROS_ERROR("%s",ex.what());
+	//}
 	gotTarget = 1;
 	//isInside = 0;
 }
@@ -264,50 +271,51 @@ std::vector<float> objWeighting;
 void objectCallback(visualization_msgs::Marker mrk){ //get object positions (sorted after value and distance)
   //colors + shape:
     // e.g. yellow + ball = 1
-		int index;
+		std::vector<int>::iterator index;
     bool pushed = 0;
     float posX = mrk.pose.position.x + pose.pose.pose.position.x; // might be already transformed
     float posY = pose.pose.pose.position.y;
     float accuracy = 0.05; //5cm radius for faulty measurement
-    if(!(std::find(objIDs.begin(), objIDs.end(), mrk.id) != objIDs.end())){ //true if id is not present
+    if(!(std::find(objectID.begin(), objectID.end(), mrk.id) != objectID.end())){ //true if id is not present
 			objectID.push_back(mrk.id);
 			if(mrk.id == 1 || mrk.id == 2 || mrk.id == 3 ){
 				objWeighting.push_back(1/14);
 			}else if(mrk.id == 4 || mrk.id == 5 || mrk.id == 5 ){
-				objWeighing.push_back(2/14);
+				objWeighting.push_back(2/14);
 			}else if(mrk.id == 6 || mrk.id == 7 || mrk.id == 8 ){
-				objWeighing.push_back(3/14);
+				objWeighting.push_back(3/14);
 			}else if(mrk.id == 9 || mrk.id == 10){
-				objWeighing.push_back(4/14);
+				objWeighting.push_back(4/14);
 			}else if(mrk.id == 11 || mrk.id == 12){
-				objWeighing.push_back(5/14);
+				objWeighting.push_back(5/14);
 			}else if(mrk.id == 13 || mrk.id == 14){
-				objWeighing.push_back(6/14);
+				objWeighting.push_back(6/14);
 			}
 			objPoseX.push_back(posX);
       objPoseY.push_back(posY);
       ROS_INFO("NEW object");
 			pushed = 1;
     }else{
-			index = std::find(objIDs.begin(), objIDs.end, mrk.id);
-      if((posX-objPoseX[index])*(posX-objPoseX[index])+(posY-objPoseY[index])*(posY-objPoseY[index]) > (accuracy*accuracy)){
-        objPoseX[index] = posX;
-        objPoseY[index] = posY;
+			index = std::find(objectID.begin(), objectID.end(), mrk.id);
+      if((posX-objPoseX[index[0]])*(posX-objPoseX[index[0]])+(posY-objPoseY[index[0]])*(posY-objPoseY[index[0]]) > (accuracy*accuracy)){
+        objPoseX[index[0]] = posX;
+        objPoseY[index[0]] = posY;
+				//evtl remove obj and push again -> generate new walls/lines
         ROS_INFO("This object has been moved.");
       }else{
         ROS_INFO("This object is already mapped.");
       }
     }
 		if(pushed){
-		objTemp1[0] = objPoseX[index]-objSize/2.0f;
-		objTemp1[1] = objPoseY[index]-objSize/2.0f;
-		objTemp1[2] = objPoseX[index]-objSize/2.0f;
-		objTemp1[3] = objPoseY[index]+objSize/2.0f;
+		objTemp1[0] = posX-objSize/2.0f;
+		objTemp1[1] = posY-objSize/2.0f;
+		objTemp1[2] = posX-objSize/2.0f;
+		objTemp1[3] = posY+objSize/2.0f;
 
-		objTemp2[0] = objPoseX[index]+objSize/2.0f;
-		objTemp2[1] = objPoseY[index]-objSize/2.0f;
-		objTemp2[2] = objPoseX[index]+objSize/2.0f;
-		objTemp2[3] = objPoseY[index]+objSize/2.0f;
+		objTemp2[0] = posX+objSize/2.0f;
+		objTemp2[1] = posY-objSize/2.0f;
+		objTemp2[2] = posX+objSize/2.0f;
+		objTemp2[3] = posY+objSize/2.0f;
 
 		ROS_INFO("Obj");
 		bool test1 = addToObs(objTemp1,0);
@@ -371,19 +379,19 @@ void batteryCallback(visualization_msgs::Marker btr){ //get object positions (so
         }
     }
     if(pushed){
-		batTemp1[0] = batPoseX[i]-batSize/2.0f;
-		batTemp1[1] = batPoseY[i]-batSize/2.0f;
-		batTemp1[2] = batPoseX[i]-batSize/2.0f;
-		batTemp1[3] = batPoseY[i]+batSize/2.0f;
+		batTemp1[0] = posX-batSize/2.0f;
+		batTemp1[1] = posY-batSize/2.0f;
+		batTemp1[2] = posX-batSize/2.0f;
+		batTemp1[3] = posY+batSize/2.0f;
 
-		batTemp2[0] = batPoseX[i]+batSize/2.0f;
-		batTemp2[1] = batPoseY[i]-batSize/2.0f;
-		batTemp2[2] = batPoseX[i]+batSize/2.0f;
-		batTemp2[3] = batPoseY[i]+batSize/2.0f;
+		batTemp2[0] = posX+batSize/2.0f;
+		batTemp2[1] = posY-batSize/2.0f;
+		batTemp2[2] = posX+batSize/2.0f;
+		batTemp2[3] = posY+batSize/2.0f;
 		ROS_INFO("bat");
-		addToObs(temp1,1);
+		addToObs(batTemp1,1);
 		ROS_INFO("bat");
-		addToObs(temp2,1);
+		addToObs(batTemp2,1);
 		}
 
 }
@@ -412,7 +420,8 @@ bool batInit(){
 			addToObs(batTemp1,1);
 			addToObs(batTemp2,1);
 		}
-		ROS_INFO("bat initialized");/*
+		ROS_INFO("bat initialized");
+		/*
 float objTemp1[4];
 float objTemp2[4];
 bool objInitialized = 0;
@@ -426,27 +435,27 @@ void objectCallback(rosie_object_detector::RAS_Evidence msg){ //get object posit
     float posX = mrk.pose.position.x + pose.pose.pose.position.x; // might be already transformed
     float posY = pose.pose.pose.position.y;
     float accuracy = 0.05; //5cm radius for faulty measurement
-    if(!(std::find(objIDs.begin(), objIDs.end(), mrk.id) != objIDs.end())){ //true if id is not present
+    if(!(std::find(objectID.begin(), objectID.end(), mrk.id) != objectID.end())){ //true if id is not present
 			objectID.push_back(mrk.id);
 			if(mrk.id == 1 || mrk.id == 2 || mrk.id == 3 ){
 				objWeighting.push_back(1);
 			}else if(mrk.id == 4 || mrk.id == 5 || mrk.id == 5 ){
-				objWeighing.push_back(2);
+				objWeighting.push_back(2);
 			}else if(mrk.id == 6 || mrk.id == 7 || mrk.id == 8 ){
-				objWeighing.push_back(3);
+				objWeighting.push_back(3);
 			}else if(mrk.id == 9 || mrk.id == 10){
-				objWeighing.push_back(4);
+				objWeighting.push_back(4);
 			}else if(mrk.id == 11 || mrk.id == 12){
-				objWeighing.push_back(5);
+				objWeighting.push_back(5);
 			}else if(mrk.id == 13 || mrk.id == 14){
-				objWeighing.push_back(6);
+				objWeighting.push_back(6);
 			}
 			objPoseX.push_back(posX);
       objPoseY.push_back(posY);
       ROS_INFO("NEW object");
 			pushed = 1;
     }else{
-			index = std::find(objIDs.begin(), objIDs.end, mrk.id);
+			index = std::find(objectID.begin(), objectID.end, mrk.id);
       if((posX-objPoseX[index])*(posX-objPoseX[index])+(posY-objPoseY[index])*(posY-objPoseY[index]) > (accuracy*accuracy)){
         objPoseX[index] = posX;
         objPoseY[index] = posY;
@@ -474,11 +483,11 @@ void objectCallback(rosie_object_detector::RAS_Evidence msg){ //get object posit
 		}
 
 }
-*/
-	}
-*/
-}
 
+	}
+
+}
+*/
 class Node{
 public:
 	float pos[2];
@@ -600,6 +609,7 @@ bool checkIntersect(Node n2, Node n1){         //array definition might be wrong
 
 float isGoalInCSpace(float x, float y){
 	float A[] = {x, y};
+	float center[2];
 	float m;
 	nc = 0;
 	for(int i =0 ; i<ALL_OBS.size(); i = i+8){
@@ -616,7 +626,7 @@ float isGoalInCSpace(float x, float y){
 			p4[1] =ALL_OBS[i+7];
 			center[0] = (p3[0]-p1[0])/2;
 			center[1]	= (p3[1]-p1[1])/2;
-			m= atan2(p1, p2);
+			m= (float) atan2((p2[1]-p1[1]), (p2[0]-p1[0]));
 
 			//ROS_INFO("x1 %f y1 %f x2 %f y2 %f", p1[0], p1[1], p2[0], p2[1] );
 
@@ -643,15 +653,6 @@ float isGoalInCSpace(float x, float y){
 	}
 }
 
-float r_end = 0.05f;
-bool check_for_endposition(){
-	if(((pose.pose.pose.position.x-xpoint)*(pose.pose.pose.position.x-xpoint)+(pose.pose.pose.position.y-ypoint)*(pose.pose.pose.position.y-ypoint)) < r_end*r_end){
-		return true;
-	}else{
-		return false;
-	}
-}
-
 float randnum;
 float randZO(float min, float max){
 		srand(ros::Time::now().nsec);
@@ -662,6 +663,8 @@ float randZO(float min, float max){
 
 bool pathFound = 0;
 void runRRT(float goalPositionX, float goalPositionY){
+	//float targetWorldX = (*target_pose_tf_ptr).getOrigin().x() + (*targetPose_ptr).pose.position.x;
+	//loat targetWorldY = (*target_pose_tf_ptr).getOrigin().y() + (*targetPose_ptr).pose.position.y;
 		/*if(mode == "home" or mode == "goto"){
 			for(int i = 0 ; i < ALL_OBJ.size()/16; i++){
 				if(i == target_num){
@@ -839,17 +842,17 @@ int getBestObject(){
 
 	for(int i = 0; i<objPoseX.size(); i++){
 		target_num = i;
-		runRRT();
+		runRRT(objPoseX[i], objPoseY[i]);
 		pathExists.push_back(pathFound);
 		distance = calculatePathDistance();
-		pathDistances.push_back(distance*objWeighting(i));
+		pathDistances.push_back(distance*objWeighting[i]);
 	}
 
 	smallest_dist = pathDistances[0];
 	smallest_dist_indx = 0;
 	for(int j = 0; j <pathDistances.size();j++){
 		if(pathDistances[j]<smallest_dist){
-			if(pathExists[i]=0){
+			if(pathExists[j]=0){
 				continue;
 			}
 			smallest_dist = pathDistances[j];
@@ -884,7 +887,7 @@ void publishPath(){
 			if(i < finalpathx.size()-1){
 					newpose.pose.orientation.z =(float) atan2((finalpathy[i+1]-finalpathy[i]),(finalpathx[i+1]-finalpathx[i]));
 			}else if( i == finalpathx.size()-1){
-				if(isGoalInCSpace() == 100){
+				if(isGoalInCSpace(finalpathx[i], finalpathy[i]) == 100){
 					newpose.pose.orientation.z =(float) atan2((finalpathy[i]-finalpathy[i-1]),(finalpathx[i]-finalpathx[i-1]));
 				}else{
 					newpose.pose.orientation.z = m+PI;
@@ -909,11 +912,11 @@ void publishPath(){
 }
 
 void deleteLastObject(int idxToDelete){
-	ALL_OBJ.erase(idxToDelete*8,idxToDelete*8+7);
-	objPoseX.erase(idxToDelete);
-	objPoseY.erase(idxToDelete);
-	objectID.erase(idxToDelete);
-	objWeighting.erase(idxToDelete);
+	ALL_OBJ.erase(ALL_OBJ.begin() + idxToDelete*8,ALL_OBJ.begin() + idxToDelete*8+7);
+	objPoseX.erase(objPoseX.begin() + idxToDelete);
+	objPoseY.erase(objPoseY.begin() + idxToDelete);
+	objectID.erase(objectID.begin() + idxToDelete);
+	objWeighting.erase(objWeighting.begin() + idxToDelete);
 }
 
 void actuateGripper(bool command){
@@ -936,7 +939,7 @@ float lastGoalY;
 int main(int argc, char **argv){
     ros::init(argc, argv, "rosie_rrt");
 
-		target_tfl_ptr.reset(new tf::TransformListener);
+		//target_tfl_ptr.reset(new tf::TransformListener);
 
     ros::NodeHandle n;
 		ros::Subscriber wall_sub = n.subscribe<visualization_msgs::MarkerArray>("/maze_map", 1000, wallCallback);
@@ -944,13 +947,12 @@ int main(int argc, char **argv){
 		//ros::Subscriber evidence_sub = n.subscribe<rosie_object_detector::RAS_Evidence>("/evidence",10, evidenceCallback);
     ros::Subscriber obj_sub = n.subscribe<visualization_msgs::Marker>("/visualization_marker", 10, objectCallback);
     ros::Subscriber bat_sub = n.subscribe<visualization_msgs::Marker>("/visualization_marker_battery", 10, batteryCallback);
-		ros::Subscriber rviz_goal = n.subscribe<geometry_msgs::PoseStamped>("move_base_simple/goal",10,rvizTargetPoseCallback)
+		ros::Subscriber rviz_goal = n.subscribe<geometry_msgs::PoseStamped>("/rviz_object_pose",10,rvizTargetPoseCallback);
     path_pub = n.advertise<nav_msgs::Path>("/rosie_rrt_path",1);
-    ros::ServiceClient gateClient = n.serviceClient<rosie_servo_controller::ControlGates>("rosie_servo_service");
+    gateClient = n.serviceClient<rosie_servo_controller::ControlGates>("rosie_servo_service");
     ros::ServiceClient reqClient = n.serviceClient<rosie_map_controller::RequestRerun>("request_rerun");
 		ros::ServiceClient startClient = n.serviceClient<rosie_map_controller::StartRRT>("start_rrt");
 
-    rosie_servo_controller::ControlGates gateSrv;
     rosie_map_controller::RequestRerun reqSrv;
 		rosie_map_controller::StartRRT startSrv;
 
@@ -988,7 +990,7 @@ int main(int argc, char **argv){
 				mapInitialized = 0;
 				mode = lastMode;
 			}
-			if(startInitialized && mapInitialized && (objPoseX.size != 0 || gotTarget)){
+			if(startInitialized && mapInitialized && (objPoseX.size() != 0 || gotTarget)){
 				if(mode == "goto"){
 					target_num = getBestObject();
 					lastGoalX = objPoseX[target_num];
@@ -1003,7 +1005,7 @@ int main(int argc, char **argv){
 					runRRT(HOME[0], HOME[1]);
 					publishPath();
 					mode = "wait";
-					lastMode = "home"
+					lastMode = "home";
 				}else if(mode == "explore"){
 
 				}else if(mode == "wait"){
@@ -1012,14 +1014,14 @@ int main(int argc, char **argv){
 							actuateGripper(1); //open
 						}else if (0 < (pow(pose.pose.pose.position.x-lastGoalX,2)+pow(pose.pose.pose.position.y-lastGoalY,2)) < 0.05*0.05){
 							actuateGripper(0);
-							mode = "home"
+							mode = "home";
 						}else if((pow(pose.pose.pose.position.x-HOME[0],2)+pow(pose.pose.pose.position.y-HOME[1],2)) > 0.2*0.2){
 							actuateGripper(0);
 						}
 					}else if(lastMode == "home"){
 						if (0 < (pow(pose.pose.pose.position.x-lastGoalX,2)+pow(pose.pose.pose.position.y-lastGoalY,2)) < 0.05*0.05){
 							actuateGripper(1);
-							mode = "goto"
+							mode = "goto";
 							deleteLastObject(target_num);
 						}
 					}
