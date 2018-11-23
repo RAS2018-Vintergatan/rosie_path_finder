@@ -32,6 +32,45 @@
 #include <rosie_servo_controller/ControlGates.h>
 #include <rosie_map_controller/RequestRerun.h>
 #include <rosie_map_controller/StartRRT.h>
+#include <rosie_object_detector/RAS_Evidence.h>
+
+#define OBJECT 0
+#define RED_CYLINDER 1
+#define RED_CUBE 2
+#define RED_HOLLOW_CUBE 3
+#define RED_BALL 4
+#define ORANGE_CROSS 5
+#define PATRIC 6
+#define YELLOW_BALL 7
+#define YELLOW_CUBE 8
+#define GREEN_CUBE 9
+#define GREEN_HOLLOW_CUBE 10
+#define GREEN_CYLINDER 11
+#define BLUE_CUBE 12
+#define BLUE_TRIANGLE 13
+#define PURPLE_CROSS 14
+#define PURPLE_STAR 15
+
+int red_cylinder_val = 0;
+int red_cube_val = 0;
+int red_hollow_cube_val = 0;
+int red_ball_val = 0;
+
+int orange_cross_val = 0;
+int patric_val = 0;
+
+int yellow_ball_val = 0;
+int yellow_cube_val = 0;
+
+int green_cube_val = 0;
+int green_hollow_cube_val = 0;
+int green_cylinder_val = 0;
+
+int blue_cube_val = 0;
+int blue_triangle_val = 0;
+
+int purple_cross_val = 0;
+int purple_star_val = 0;
 
 // RRT parameter
 float PI = 3.1415926f;
@@ -268,7 +307,7 @@ float objTemp2[4];
 bool objInitialized = 0;
 std::vector<int> objectID;
 std::vector<float> objWeighting;
-void objectCallback(visualization_msgs::Marker mrk){ //get object positions (sorted after value and distance)
+/*void objectCallback(visualization_msgs::Marker mrk){ //get object positions (sorted after value and distance)
   //colors + shape:
     // e.g. yellow + ball = 1
 		std::vector<int>::iterator index;
@@ -279,17 +318,17 @@ void objectCallback(visualization_msgs::Marker mrk){ //get object positions (sor
     if(!(std::find(objectID.begin(), objectID.end(), mrk.id) != objectID.end())){ //true if id is not present
 			objectID.push_back(mrk.id);
 			if(mrk.id == 1 || mrk.id == 2 || mrk.id == 3 ){
-				objWeighting.push_back(1/14);
+				objWeighting.push_back(1);
 			}else if(mrk.id == 4 || mrk.id == 5 || mrk.id == 5 ){
-				objWeighting.push_back(2/14);
+				objWeighting.push_back(2);
 			}else if(mrk.id == 6 || mrk.id == 7 || mrk.id == 8 ){
-				objWeighting.push_back(3/14);
+				objWeighting.push_back(3);
 			}else if(mrk.id == 9 || mrk.id == 10){
-				objWeighting.push_back(4/14);
+				objWeighting.push_back(4);
 			}else if(mrk.id == 11 || mrk.id == 12){
-				objWeighting.push_back(5/14);
+				objWeighting.push_back(5);
 			}else if(mrk.id == 13 || mrk.id == 14){
-				objWeighting.push_back(6/14);
+				objWeighting.push_back(6);
 			}
 			objPoseX.push_back(posX);
       objPoseY.push_back(posY);
@@ -324,6 +363,140 @@ void objectCallback(visualization_msgs::Marker mrk){ //get object positions (sor
 		pushed = 0;
 		}
 
+}*/
+
+void evidenceCallback(const rosie_object_detector::RAS_Evidence evidence){
+	std::string obj_string_id = evidence.object_id;
+	int obj_id = 0;
+	int obj_val = 0;
+	float obj_size = 0.05;
+	/*if(obj_string_id.compare(evidence.red_cylinder)){
+		obj_id = RED_CYLINDER;
+		obj_val = red_cylinder_val;
+	}*/
+	if(obj_string_id.compare(evidence.red_cube)){
+		obj_id = RED_CUBE;
+		obj_val = red_cube_val;
+	}
+	if(obj_string_id.compare(evidence.red_hollow_cube)){
+		obj_id = RED_HOLLOW_CUBE;
+		obj_val = red_hollow_cube_val;
+	}
+	if(obj_string_id.compare(evidence.red_ball)){
+		obj_id = RED_BALL;
+		obj_val = red_ball_val;
+	}
+	/*if(obj_string_id.compare(evidence.orange_cross)){
+		obj_id = ORANGE_CROSS;
+		obj_val = orange_cross_val;
+	}*/
+	if(obj_string_id.compare(evidence.patric)){
+		obj_id = PATRIC;
+		obj_val = patric_val;
+	}
+	if(obj_string_id.compare(evidence.yellow_ball)){
+		obj_id = YELLOW_BALL;
+		obj_val = yellow_ball_val;
+	}
+	if(obj_string_id.compare(evidence.yellow_cube)){
+		obj_id = YELLOW_CUBE;
+		obj_val = yellow_cube_val;
+	}
+	if(obj_string_id.compare(evidence.green_cube)){
+		obj_id = GREEN_CUBE;
+		obj_val = green_cube_val;
+	}
+	/*if(obj_string_id.compare(evidence.green_hollow_cube)){
+		obj_id = GREEN_HOLLOW_CUBE;
+		obj_val = green_hollow_cube_val;
+	}*/
+	if(obj_string_id.compare(evidence.green_cylinder)){
+		obj_id = GREEN_CYLINDER;
+		obj_val = green_cylinder_val;
+	}
+	if(obj_string_id.compare(evidence.blue_cube)){
+		obj_id = BLUE_CUBE;
+		obj_val = blue_cube_val;
+	}
+	if(obj_string_id.compare(evidence.blue_triangle)){
+		obj_id = BLUE_TRIANGLE;
+		obj_val = blue_triangle_val;
+	}
+	if(obj_string_id.compare(evidence.purple_cross)){
+		obj_id = PURPLE_CROSS;
+		obj_val = purple_cross_val;
+	}
+	if(obj_string_id.compare(evidence.purple_star)){
+		obj_id = PURPLE_STAR;
+		obj_val = purple_star_val;
+	}
+	else if(obj_string_id.compare(evidence.an_object)){
+		obj_id = OBJECT;
+		obj_val = 0;
+		obj_size = 0.1;
+	}
+
+
+	float posX = evidence.object_location.transform.translation.x;
+	float posY = evidence.object_location.transform.translation.y;
+
+ 	int pushed = -1;
+	if(obj_id != OBJECT){
+		float accuracy = 0.05; //5cm radius for faulty measurement
+		if(!(std::find(objectID.begin(), objectID.end(), obj_id) != objectID.end())){ //true if id is not present
+			objectID.push_back(obj_id);
+			objWeighting.push_back(obj_val);
+		
+			objPoseX.push_back(posX);
+			objPoseY.push_back(posY);
+			pushed = 0;
+		}else{
+			std::vector<int>::iterator index;
+			index = std::find(objectID.begin(), objectID.end(), obj_id);
+			if((posX-objPoseX[index[0]])*(posX-objPoseX[index[0]])+(posY-objPoseY[index[0]])*(posY-objPoseY[index[0]]) > (accuracy*accuracy)){
+				objPoseX[index[0]] = posX;
+				objPoseY[index[0]] = posY;
+				//evtl remove obj and push again -> generate new walls/lines
+				ROS_INFO("This object has been moved.");
+			}else{
+				ROS_INFO("This object is already mapped.");
+			}
+		}
+
+	}else{
+		float posX = evidence.object_location.transform.translation.x;
+		float posY = evidence.object_location.transform.translation.y;
+		float accuracy = 0.05; //5cm radius for faulty measurement
+		for(int i = 0; i< batPoseX.size(); ++i){
+		    if((posX-batPoseX[i])*(posX-batPoseX[i])+(posY-batPoseY[i])*(posY-batPoseY[i]) < (accuracy*accuracy)){
+		      ROS_INFO("Battery is already mapped. - Updated battery position");
+						batPoseX[i] = posX;
+						batPoseY[i] = posY;
+		    }else{
+		      ROS_INFO("NEW battery");
+						batPoseX.push_back(posX);
+						batPoseY.push_back(posY);
+						pushed = 1;
+		    }
+		}
+	}
+	if(pushed>=0){
+		objTemp1[0] = posX-obj_size/2.0f;
+		objTemp1[1] = posY-obj_size/2.0f;
+		objTemp1[2] = posX-obj_size/2.0f;
+		objTemp1[3] = posY+obj_size/2.0f;
+
+		objTemp2[0] = posX+obj_size/2.0f;
+		objTemp2[1] = posY-obj_size/2.0f;
+		objTemp2[2] = posX+obj_size/2.0f;
+		objTemp2[3] = posY+obj_size/2.0f;
+
+		ROS_INFO("Obj");
+		bool test1 = addToObs(objTemp1,pushed);
+		ROS_INFO("Obj");
+		bool test2 = addToObs(objTemp2,pushed);
+		pushed = -1;
+	}
 }
 
 /*
@@ -357,17 +530,15 @@ bool objInit(){
 	}
 }
 */
-float batTemp1[4];
-float batTemp2[4];
-bool batInitialized = 0;
-void batteryCallback(visualization_msgs::Marker btr){ //get object positions (sorted after value and distance)
+
+/*void batteryCallback(visualization_msgs::Marker btr){ //get object positions (sorted after value and distance)
 
 		bool pushed = 0;
     float posX = btr.pose.position.x + pose.pose.pose.position.x;
     float posY = pose.pose.pose.position.y;
     float r = 0.05; //5cm radius for faulty measurement
     for(int i = 0; i< batPoseX.size(); ++i){
-        if((posX-objPoseX[i])*(posX-objPoseX[i])+(posY-objPoseY[i])*(posY-objPoseY[i]) < (r*r)){
+        if((posX-batPoseX[i])*(posX-batPoseX[i])+(posY-batPoseY[i])*(posY-batPoseY[i]) < (r*r)){
           ROS_INFO("Battery is already mapped. - Updated battery position");
 					batPoseX[i] = posX;
 					batPoseY[i] = posY;
@@ -394,7 +565,7 @@ void batteryCallback(visualization_msgs::Marker btr){ //get object positions (so
 		addToObs(batTemp2,1);
 		}
 
-}
+}*/
 /*
 bool batInit(){
 	if(!batInitialized){
@@ -944,14 +1115,30 @@ int main(int argc, char **argv){
     ros::NodeHandle n;
 		ros::Subscriber wall_sub = n.subscribe<visualization_msgs::MarkerArray>("/maze_map", 1000, wallCallback);
 		ros::Subscriber pose_sub = n.subscribe<nav_msgs::Odometry>("/odom", 10, currentPoseCallback);
-		//ros::Subscriber evidence_sub = n.subscribe<rosie_object_detector::RAS_Evidence>("/evidence",10, evidenceCallback);
-    ros::Subscriber obj_sub = n.subscribe<visualization_msgs::Marker>("/visualization_marker", 10, objectCallback);
-    ros::Subscriber bat_sub = n.subscribe<visualization_msgs::Marker>("/visualization_marker_battery", 10, batteryCallback);
+		ros::Subscriber evidence_sub = n.subscribe<rosie_object_detector::RAS_Evidence>("/evidence",10, evidenceCallback);
+    //ros::Subscriber obj_sub = n.subscribe<visualization_msgs::Marker>("/visualization_marker", 10, objectCallback);
+    //ros::Subscriber bat_sub = n.subscribe<visualization_msgs::Marker>("/visualization_marker_battery", 10, batteryCallback);
 		ros::Subscriber rviz_goal = n.subscribe<geometry_msgs::PoseStamped>("/rviz_object_pose",10,rvizTargetPoseCallback);
     path_pub = n.advertise<nav_msgs::Path>("/rosie_rrt_path",1);
     gateClient = n.serviceClient<rosie_servo_controller::ControlGates>("rosie_servo_service");
     ros::ServiceClient reqClient = n.serviceClient<rosie_map_controller::RequestRerun>("request_rerun");
 		ros::ServiceClient startClient = n.serviceClient<rosie_map_controller::StartRRT>("start_rrt");
+
+    n.getParam("red_cylinder", red_cylinder_val);
+    n.getParam("red_cube", red_cube_val);
+    n.getParam("red_hollow_cube", red_hollow_cube_val);
+    n.getParam("red_ball", red_ball_val);
+    n.getParam("orange_cross", orange_cross_val);
+    n.getParam("patric", patric_val);
+    n.getParam("yellow_ball", yellow_ball_val);
+    n.getParam("yellow_cube", yellow_cube_val);
+    n.getParam("green_cube", green_cube_val);
+    n.getParam("green_hollow_cube", green_hollow_cube_val);
+    n.getParam("green_cylinder", green_cylinder_val);
+    n.getParam("blue_cube", blue_cube_val);
+    n.getParam("blue_triangle", blue_triangle_val);
+    n.getParam("purple_cross", purple_cross_val);
+    n.getParam("purple_star", purple_star_val);
 
     rosie_map_controller::RequestRerun reqSrv;
 		rosie_map_controller::StartRRT startSrv;

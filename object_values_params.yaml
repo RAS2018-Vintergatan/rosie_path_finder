@@ -1,0 +1,20 @@
+red_cylinder: 1
+red_cube: 1
+red_hollow_cube: 1
+red_ball: 1
+
+orange_cross: 2
+patric: 1000
+
+yellow_ball: 5
+yellow_cube: 5
+
+green_cube: 3
+green_hollow_cube: 3
+green_cylinder: 3
+
+blue_cube: 4
+blue_triangle: 4
+
+purple_cross: 6
+purple_star: 6
