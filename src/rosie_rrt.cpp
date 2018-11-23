@@ -26,7 +26,7 @@
 #include <stdlib.h>
 #include <algorithm>
 #include <vector>
-#include<iterator>
+#include <iterator>
 #include <string>
 
 #include <rosie_servo_controller/ControlGates.h>
@@ -446,7 +446,7 @@ void evidenceCallback(const rosie_object_detector::RAS_Evidence evidence){
 		if(!(std::find(objectID.begin(), objectID.end(), obj_id) != objectID.end())){ //true if id is not present
 			objectID.push_back(obj_id);
 			objWeighting.push_back(obj_val);
-		
+
 			objPoseX.push_back(posX);
 			objPoseY.push_back(posY);
 			pushed = 0;
