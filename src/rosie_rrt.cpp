@@ -437,8 +437,8 @@ void evidenceCallback(const rosie_object_detector::RAS_Evidence evidence){
 	}
 
 
-	float posX = evidence.object_location.transform.translation.x;
-	float posY = evidence.object_location.transform.translation.y;
+	float posX = evidence.object_location.x;
+	float posY = evidence.object_location.y;
 
  	int pushed = -1;
 	if(obj_id != OBJECT){
@@ -464,8 +464,8 @@ void evidenceCallback(const rosie_object_detector::RAS_Evidence evidence){
 		}
 
 	}else{
-		float posX = evidence.object_location.transform.translation.x;
-		float posY = evidence.object_location.transform.translation.y;
+		float posX = evidence.object_location.x;
+		float posY = evidence.object_location.y;
 		float accuracy = 0.05; //5cm radius for faulty measurement
 		for(int i = 0; i< batPoseX.size(); ++i){
 		    if((posX-batPoseX[i])*(posX-batPoseX[i])+(posY-batPoseY[i])*(posY-batPoseY[i]) < (accuracy*accuracy)){
