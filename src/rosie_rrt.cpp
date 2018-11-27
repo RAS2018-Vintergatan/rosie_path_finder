@@ -128,7 +128,7 @@ std::string mode = "goto";
 float origin[] = {0.0f,0.0f};
 float temp[2];
 float m;
-float r = 0.1f;
+float r = 0.12f;
 float x_1,y_1,x_2,y_2;
 float diffy;
 float diffx;
@@ -149,16 +149,16 @@ bool addToObs(float data[], bool obsOrObj){
 			p[1] =data[1];
 			p[2] =data[2];
 			p[3] =data[3];
-			//ROS_INFO("x1 %f y1 %f x2 %f y2 %f", p1[0], p1[1], p2[0], p2[1] );
+		//	ROS_INFO("x1 %f y1 %f x2 %f y2 %f", p1[0], p1[1], p2[0], p2[1] );
 
 
 			if((p[3]< p[1]) || (p[3] == p[1] and p[2]<p[0])){
 				temp[0] = p[0];
 				temp[1] = p[1];
-				ROS_INFO("%f %f", p[0], p[1]);
+				//ROS_INFO("%f %f", p[0], p[1]);
 				p[0] = p[2];
 				p[1] = p[3];
-				ROS_INFO("%f %f", p[2], p[3]);
+				//ROS_INFO("%f %f", p[2], p[3]);
 				p[2] = temp[0];
 				p[3] = temp[1];
 
@@ -166,7 +166,7 @@ bool addToObs(float data[], bool obsOrObj){
 			diffx = p[2]-p[0];
 			diffy = p[3]-p[1];
 			m = (float) atan2(diffy, diffx);
-			ROS_INFO("m %f",m);
+			//ROS_INFO("m %f",m);
 			co = r*cos(m);
 			si = r*sin(m);
 
@@ -194,7 +194,7 @@ bool addToObs(float data[], bool obsOrObj){
 			}
 
 	 }
-	 ROS_INFO("addToObs");
+	 //ROS_INFO("addToObs");
 	 return true;
 }
 
@@ -204,7 +204,7 @@ float czone;
 float sX, sY, eX, eY;
 void wallCallback(const visualization_msgs::MarkerArray msg){
 	if(!mapInitialized){
-		ROS_INFO("Initializing!");
+		//ROS_INFO("Initializing!");
 		numbMarkers = msg.markers.size();
 		czone = robotsize/(2.0f) + 0.02f; //additional extra security distance
 
@@ -269,7 +269,7 @@ void wallCallback(const visualization_msgs::MarkerArray msg){
 			single_wall[1] = wallArray[i+1];
 			single_wall[2] = wallArray[i+2];
 			single_wall[3] = wallArray[i+3];
-			ROS_INFO("Wall");
+			//ROS_INFO("Wall");
 			bool test1 = addToObs(single_wall,1);
 		}
 		mapInitialized = 1;
@@ -279,26 +279,21 @@ void wallCallback(const visualization_msgs::MarkerArray msg){
 }
 
 nav_msgs::Odometry pose;
+
 void currentPoseCallback(nav_msgs::Odometry msg){ // for re-calculation of the path when needed
     pose = msg;
 		//pose.pose.pose.position.x = 0.25f;
 		//pose.pose.pose.position.y = 0.40f;
 }
 
-bool gotTarget = 0;
+bool gotNewTarget = 0;
 geometry_msgs::PoseStamped rviz_pose;
-//boost::shared_ptr<tf::TransformListener> target_tfl_ptr;
-//boost::shared_ptr<tf::StampedTransform> target_pose_tf_ptr;
 void rvizTargetPoseCallback(geometry_msgs::PoseStamped msg){
-	rviz_pose = msg;
-	//try{
-	//	(*target_tfl_ptr).waitForTransform("world", msg.header.frame_id, ros::Time(0), ros::Duration(10.0));
-	//	(*target_tfl_ptr).lookupTransform("world", msg.header.frame_id, ros::Time(0), *target_pose_tf_ptr);
-	//}catch(tf::TransformException ex){
-	//	ROS_ERROR("%s",ex.what());
-	//}
-	gotTarget = 1;
-	//isInside = 0;
+	if((msg.pose.position.x != rviz_pose.pose.position.x) || (msg.pose.position.x != rviz_pose.pose.position.y)){
+		rviz_pose = msg;
+		ROS_INFO("target x: %f y: %f", rviz_pose.pose.position.x, rviz_pose.pose.position.y);
+		gotNewTarget = 1;
+	}
 }
 
 
@@ -369,7 +364,7 @@ void evidenceCallback(const rosie_object_detector::RAS_Evidence evidence){
 	std::string obj_string_id = evidence.object_id;
 	int obj_id = 0;
 	int obj_val = 0;
-	float obj_size = 0.05;
+	float obj_size = objSize;
 	/*if(obj_string_id.compare(evidence.red_cylinder)){
 		obj_id = RED_CYLINDER;
 		obj_val = red_cylinder_val;
@@ -433,7 +428,7 @@ void evidenceCallback(const rosie_object_detector::RAS_Evidence evidence){
 	else if(obj_string_id.compare(evidence.an_object)){
 		obj_id = OBJECT;
 		obj_val = 0;
-		obj_size = 0.1;
+		obj_size = batSize;
 	}
 
 
@@ -491,12 +486,51 @@ void evidenceCallback(const rosie_object_detector::RAS_Evidence evidence){
 		objTemp2[2] = posX+obj_size/2.0f;
 		objTemp2[3] = posY+obj_size/2.0f;
 
-		ROS_INFO("Obj");
+		//ROS_INFO("Obj");
 		bool test1 = addToObs(objTemp1,pushed);
-		ROS_INFO("Obj");
+		//ROS_INFO("Obj");
 		bool test2 = addToObs(objTemp2,pushed);
 		pushed = -1;
 	}
+}
+
+float oldTargetX = -1;
+float oldTargetY = -1;
+int oldTargetIdx = -1;
+
+void addTargetToObject(){
+	float tarTemp1[4];
+	float tarTemp2[4];
+	objectID.clear();
+	objPoseX.clear();
+	objPoseY.clear();
+	objWeighting.clear();
+	ALL_OBJ.clear();
+
+	float targetX = rviz_pose.pose.position.x;
+	float targetY = rviz_pose.pose.position.y;
+	objectID.push_back(PATRIC);
+	objWeighting.push_back(1000);
+	oldTargetIdx = objPoseX.size();
+	objPoseX.push_back(targetX);
+	objPoseY.push_back(targetY);
+	tarTemp1[0] = targetX-objSize/2.0f;
+	tarTemp1[1] = targetY-objSize/2.0f;
+	tarTemp1[2] = targetX-objSize/2.0f;
+	tarTemp1[3] = targetY+objSize/2.0f;
+
+	tarTemp2[0] = targetX+objSize/2.0f;
+	tarTemp2[1] = targetY-objSize/2.0f;
+	tarTemp2[2] = targetX+objSize/2.0f;
+	tarTemp2[3] = targetY+objSize/2.0f;
+
+	bool test1 = addToObs(tarTemp1,0);
+	//ROS_INFO("Obj");
+	bool test2 = addToObs(tarTemp2,0);
+	ROS_INFO("Target added to Obj-List");
+	oldTargetX = targetX;
+	oldTargetY = targetY;
+
 }
 
 /*
@@ -715,10 +749,11 @@ bool ints3;
 bool ints4;
 
 bool checkIntersect(Node n2, Node n1){         //array definition might be wrong
-    float A[]= {n1.pos[0],n1.pos[1]};
+		float A[]= {n1.pos[0],n1.pos[1]};
     float B[]= {n2.pos[0],n2.pos[1]};
 		nc = true;
     for(int i =0 ; i<ALL_OBS.size(); i = i+8){
+			//ROS_INFO("ALL OBS size %d", ALL_OBS.size());
 				p1[0] =ALL_OBS[i];
 				p1[1] =ALL_OBS[i+1];
 				p2[0] =ALL_OBS[i+2];
@@ -732,12 +767,12 @@ bool checkIntersect(Node n2, Node n1){         //array definition might be wrong
 				 ints1 = isIntersecting(p1,p2,A,B);
 				 ints2 = isIntersecting(p1,p4,A,B);
 				 ints3 = isIntersecting(p3,p2,A,B);
-				 ints3 = isIntersecting(p3,p4,A,B);
+				 ints4 = isIntersecting(p3,p4,A,B);
 
-				// ints1 = ccw(A,P1,P4) != ccw(B,P1,P4) and ccw(A,B,P1) != ccw(A,B,P4);
-        // ints2 = ccw(A,P1,P2) != ccw(B,P1,P2) and ccw(A,B,P1) != ccw(A,B,P2);
-        // ints3 = ccw(A,P3,P2) != ccw(B,P3,P2) and ccw(A,B,P3) != ccw(A,B,P2);
-        // ints4 = ccw(A,P3,P4) != ccw(B,P3,P4) and ccw(A,B,P3) != ccw(A,B,P4);
+				 //ints1 = ccw(A,p1,p4) != ccw(B,p1,p4) and ccw(A,B,p1) != ccw(A,B,p4);
+         //ints2 = ccw(A,p1,p2) != ccw(B,p1,p2) and ccw(A,B,p1) != ccw(A,B,p2);
+         //ints3 = ccw(A,p3,p2) != ccw(B,p3,p2) and ccw(A,B,p3) != ccw(A,B,p2);
+         //ints4 = ccw(A,p3,p4) != ccw(B,p3,p4) and ccw(A,B,p3) != ccw(A,B,p4);
         if(ints1==0 and ints2==0 and ints3==0 and ints4==0 and nc ==1){
             nc = 1;
         }else{
@@ -745,9 +780,12 @@ bool checkIntersect(Node n2, Node n1){         //array definition might be wrong
         }
 
     }
+		//ROS_INFO("%d", target_num);
 		for(int i =0 ; i<ALL_OBJ.size(); i = i+8){
-				if(i = target_num*8){
-					i = i+8;
+				//ROS_INFO("ALL OBJ size %d", ALL_OBJ.size());
+				if(i == target_num*16){
+					//ROS_INFO("skipped");
+					i = i+16;
 				}
 				p1[0] =ALL_OBJ[i];
 				p1[1] =ALL_OBJ[i+1];
@@ -775,6 +813,7 @@ bool checkIntersect(Node n2, Node n1){         //array definition might be wrong
         }
 
     }
+		//ROS_INFO("CheckIntersect called %d", nc);
 		return nc;
 }
 
@@ -846,15 +885,14 @@ void runRRT(float goalPositionX, float goalPositionY){
 				}
 			}
 		}*/
-		ROS_INFO("start path calc");
+		//ROS_INFO("start path calc");
 	  ros::Time start_time = ros::Time::now();
 		int p = 0;
 		//ROS_INFO("Start: startx %f starty %f", startx, starty);
 		std::vector<Node> nodes;
 		std::vector<Node> q_nearest;
     std::vector<float> ndist;
-		Node start (startx+OFFSET[0], starty+OFFSET[1],0, 0);
-		// Node start (pose.pose.pose.position.x, pose.pose.pose.position.y,0, 0);
+		Node start (pose.pose.pose.position.x+OFFSET[0], pose.pose.pose.position.y+OFFSET[1],0, 0);
 		Node goal (0,0,0,0);
 		goal = Node(goalPositionX, goalPositionY, 0,0);
 		nodes.push_back(start);
@@ -907,10 +945,13 @@ void runRRT(float goalPositionX, float goalPositionY){
 			//ROS_INFO("smallest_dist_dist = %f, index = %d",smallest_dist, smallest_dist_indx);
 
 			q_near = nodes[smallest_dist_indx];
+			//ROS_INFO("checkpoint 2");
 
 			step_from_to(q_rand.pos, q_near.pos, q_new.pos);
 			//ROS_INFO("2  %f %f", q_new_pos[0], q_new_pos[1]);
 			if(checkIntersect(q_rand, q_near)){
+				//ROS_INFO("checkpoint 3");
+
 				q_new.cost = dist(q_new.pos, q_near.pos) + q_near.cost;
 				q_nearest.clear();
 				for(int j= 0; j<nodes.size(); j++){
@@ -972,7 +1013,7 @@ void runRRT(float goalPositionX, float goalPositionY){
 		points.clear();
 		finalpathx.push_back(q_end.pos[0]);
 		finalpathy.push_back(q_end.pos[1]);
-		ROS_INFO("checkpoint");
+		//ROS_INFO("checkpoint");
 		while(q_end.parent != 0){
 
 			idx = q_end.parent;
@@ -1041,9 +1082,9 @@ void publishPath(){
 	ros::Time now = ros::Time::now();
 	path.header.seq=pathseq;
 	path.header.stamp = now;
-	path.header.frame_id = "path";
+	path.header.frame_id = "map";
 	int seq = 0;
-	for(int i = 0; i < finalpathx.size(); ++i){
+	for(int i = finalpathx.size()-1; i >= 0; i--){
 
 			newpose.header.seq=seq;
 			newpose.header.stamp = now;
@@ -1055,13 +1096,14 @@ void publishPath(){
 			newpose.pose.orientation.x = 0;
 			newpose.pose.orientation.y = 0;
 			newpose.pose.orientation.w = 1;
-			if(i < finalpathx.size()-1){
-					newpose.pose.orientation.z =(float) atan2((finalpathy[i+1]-finalpathy[i]),(finalpathx[i+1]-finalpathx[i]));
-			}else if( i == finalpathx.size()-1){
-				if(isGoalInCSpace(finalpathx[i], finalpathy[i]) == 100){
-					newpose.pose.orientation.z =(float) atan2((finalpathy[i]-finalpathy[i-1]),(finalpathx[i]-finalpathx[i-1]));
+			if(i > 0){
+					newpose.pose.orientation.z =(float) atan2((finalpathy[i]-finalpathy[i+1]),(finalpathx[i]-finalpathx[i+1]));
+			}else if( i == 0){
+				int cspaceCheck = isGoalInCSpace(finalpathx[i], finalpathy[i]);
+				if(cspaceCheck == 100){
+					//newpose.pose.orientation.z =(float) atan2((finalpathy[i-1]-finalpathy[i]),(finalpathx[i-1]-finalpathx[i]));
 				}else{
-					newpose.pose.orientation.z = m+PI;
+					newpose.pose.orientation.z = cspaceCheck+PI;
 				}
 			}
 			newpose.pose.orientation.z = 0;
@@ -1078,12 +1120,13 @@ void publishPath(){
 	}
 	pathseq++;
 	//path.poses = poses;
-	ROS_INFO("Checkpoint");
+	//ROS_INFO("Checkpoint");
 
 }
 
 void deleteLastObject(int idxToDelete){
-	ALL_OBJ.erase(ALL_OBJ.begin() + idxToDelete*8,ALL_OBJ.begin() + idxToDelete*8+7);
+	ROS_INFO("%d", idxToDelete);
+	ALL_OBJ.erase(ALL_OBJ.begin() + idxToDelete*8,ALL_OBJ.begin() + idxToDelete*8+15);
 	objPoseX.erase(objPoseX.begin() + idxToDelete);
 	objPoseY.erase(objPoseY.begin() + idxToDelete);
 	objectID.erase(objectID.begin() + idxToDelete);
@@ -1139,88 +1182,117 @@ int main(int argc, char **argv){
     n.getParam("blue_triangle", blue_triangle_val);
     n.getParam("purple_cross", purple_cross_val);
     n.getParam("purple_star", purple_star_val);
+		pose.pose.pose.position.x = 20;
+		pose.pose.pose.position.y = 40;
 
     rosie_map_controller::RequestRerun reqSrv;
 		rosie_map_controller::StartRRT startSrv;
 
 		static tf::TransformBroadcaster br;
-
+		bool targetPathPublished = 0;
     ros::Rate loop_rate(10);
 		ros::Rate drivingtime(0.2);
 	  ros::Time load_time = ros::Time::now();
 
-		//objInit();
-		//batInit();
 		startSrv.request.command = 2;
     while(ros::ok()){
-			//bool objectsInitialized = objInit();
-			//bool batteriesInitialized = batInit();
-
 //***********************************
 //STATE-MACHINE
 //***********************************
-			if(!startInitialized){
-				reqClient.call(startSrv);
-				if(startSrv.response.answer){
-					startInitialized = 1; // normal collect objects mode
-				}
-			}
-			if(gotTarget){
-				//actually ignors other objects
-				runRRT(rviz_pose.pose.position.x, rviz_pose.pose.position.y);
-				publishPath();
-				gotTarget = 0;
-			}
-			reqSrv.request.question = 1;
-			reqClient.call(reqSrv);
-			if(reqSrv.response.answer){
-				mapInitialized = 0;
-				mode = lastMode;
-			}
-			if(startInitialized && mapInitialized && (objPoseX.size() != 0 || gotTarget)){
-				if(mode == "goto"){
-					target_num = getBestObject();
-					lastGoalX = objPoseX[target_num];
-					lastGoalY = objPoseY[target_num];
-					runRRT(lastGoalX, lastGoalY);
-					publishPath();
-					mode = "wait";
-					lastMode = "goto";
-				}else if( mode == "home"){
-					lastGoalX = HOME[0];
-					lastGoalY = HOME[1];
-					runRRT(HOME[0], HOME[1]);
-					publishPath();
-					mode = "wait";
-					lastMode = "home";
-				}else if(mode == "explore"){
-
-				}else if(mode == "wait"){
-					if(lastMode == "goto"){
-						if(0.05*0.05 < (pow(pose.pose.pose.position.x-lastGoalX,2)+pow(pose.pose.pose.position.y-lastGoalY,2)) < 0.2*0.2){
-							actuateGripper(1); //open
-						}else if (0 < (pow(pose.pose.pose.position.x-lastGoalX,2)+pow(pose.pose.pose.position.y-lastGoalY,2)) < 0.05*0.05){
-							actuateGripper(0);
-							mode = "home";
-						}else if((pow(pose.pose.pose.position.x-HOME[0],2)+pow(pose.pose.pose.position.y-HOME[1],2)) > 0.2*0.2){
-							actuateGripper(0);
-						}
-					}else if(lastMode == "home"){
-						if (0 < (pow(pose.pose.pose.position.x-lastGoalX,2)+pow(pose.pose.pose.position.y-lastGoalY,2)) < 0.05*0.05){
-							actuateGripper(1);
-							mode = "goto";
-							deleteLastObject(target_num);
+			if(mapInitialized){
+				if(!startInitialized){
+					if(startClient.call(startSrv)){
+						if(startSrv.response.answer){
+							startInitialized = 1; // normal collect objects mode
+							ROS_INFO("Started");
+							objectID.clear();
+							objPoseX.clear();
+							objPoseY.clear();
+							objWeighting.clear();
+							ALL_OBJ.clear();
 						}
 					}
 				}
-				path_pub.publish(path);
-				ROS_INFO("path published");
-				tf::Transform transform;
-				transform.setOrigin( tf::Vector3(0,0, 0) );
-				tf::Quaternion qtf;
-				qtf.setRPY(0, 0, 0);
-				transform.setRotation( qtf );
-				br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "map", "path"));
+				if(gotNewTarget && !startInitialized){
+					//actually ignors other objects
+					addTargetToObject();
+					target_num = oldTargetIdx;
+					runRRT(rviz_pose.pose.position.x, rviz_pose.pose.position.y);
+					publishPath();
+					gotNewTarget = 0;
+					//deleteLastObject(target_num);
+					targetPathPublished = 1;
+				}
+				if(targetPathPublished && !startInitialized){
+					path_pub.publish(path);
+					//ROS_INFO("checkpoint 1");
+					//tf::Transform transform;
+					//transform.setOrigin( tf::Vector3(0,0, 0) );
+					//tf::Quaternion qtf;
+					//qtf.setRPY(0, 0, 0);
+					//transform.setRotation( qtf );
+					//br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "map", "path"));
+				}
+				reqSrv.request.question = 1;
+				if(reqClient.call(reqSrv)){
+					if(reqSrv.response.answer){
+						mapInitialized = 0; // provokes resampling of the map that is probably updated
+						mode = lastMode; // the automatik procedure starts again, but leaves the wait state and goes back to the last action that is not yet completed
+					}
+				}
+				if(startInitialized){
+					if(gotNewTarget){
+						//actually ignors other objects
+						addTargetToObject();
+						gotNewTarget = 0;
+
+					}
+					if((objPoseX.size() != 0)){
+						if(mode == "goto"){
+							target_num = getBestObject();
+							lastGoalX = objPoseX[target_num];
+							lastGoalY = objPoseY[target_num];
+							runRRT(lastGoalX, lastGoalY);
+							publishPath();
+							mode = "wait";
+							lastMode = "goto";
+						}else if( mode == "home"){
+							lastGoalX = HOME[0];
+							lastGoalY = HOME[1];
+							runRRT(HOME[0], HOME[1]);
+							publishPath();
+							mode = "wait";
+							lastMode = "home";
+						}else if(mode == "explore"){
+
+						}else if(mode == "wait"){
+							if(lastMode == "goto"){
+								if(0.05*0.05 < (pow(pose.pose.pose.position.x-lastGoalX,2)+pow(pose.pose.pose.position.y-lastGoalY,2)) < 0.2*0.2){
+									actuateGripper(1); //open
+								}else if (0 < (pow(pose.pose.pose.position.x-lastGoalX,2)+pow(pose.pose.pose.position.y-lastGoalY,2)) < 0.05*0.05){
+									actuateGripper(0);
+									mode = "home";
+								}else if((pow(pose.pose.pose.position.x-HOME[0],2)+pow(pose.pose.pose.position.y-HOME[1],2)) > 0.2*0.2){
+									actuateGripper(0);
+								}
+							}else if(lastMode == "home"){
+								if (0 < (pow(pose.pose.pose.position.x-lastGoalX,2)+pow(pose.pose.pose.position.y-lastGoalY,2)) < 0.05*0.05){
+									actuateGripper(1);
+									mode = "goto";
+									deleteLastObject(target_num);
+								}
+							}
+						}
+						path_pub.publish(path);
+						ROS_INFO("path published");
+						tf::Transform transform;
+						transform.setOrigin( tf::Vector3(0,0, 0) );
+						tf::Quaternion qtf;
+						qtf.setRPY(0, 0, 0);
+						transform.setRotation( qtf );
+						br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "map", "path"));
+					}
+				}
 			}
 			ros::spinOnce();
 			loop_rate.sleep();
