@@ -1162,7 +1162,7 @@ int main(int argc, char **argv){
     //ros::Subscriber obj_sub = n.subscribe<visualization_msgs::Marker>("/visualization_marker", 10, objectCallback);
     //ros::Subscriber bat_sub = n.subscribe<visualization_msgs::Marker>("/visualization_marker_battery", 10, batteryCallback);
 		ros::Subscriber rviz_goal = n.subscribe<geometry_msgs::PoseStamped>("/rviz_object_pose",10,rvizTargetPoseCallback);
-    path_pub = n.advertise<nav_msgs::Path>("/rosie_rrt_path",1);
+    path_pub = n.advertise<nav_msgs::Path>("/rosie_path",1);
     gateClient = n.serviceClient<rosie_servo_controller::ControlGates>("rosie_servo_service");
     ros::ServiceClient reqClient = n.serviceClient<rosie_map_controller::RequestRerun>("request_rerun");
 		ros::ServiceClient startClient = n.serviceClient<rosie_map_controller::StartRRT>("start_rrt");
