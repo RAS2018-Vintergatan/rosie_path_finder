@@ -262,52 +262,52 @@ std::vector<float> objWeighting;
 //std::vector<rosie_map_controller::ObjectPosition> objStack;
 //std::vector<rosie_map_controller::BatteryPosition> batStack;
 rosie_map_controller::ObjectStoring objStack;
+void objCallback(rosie_map_controller::ObjectStoring msg){
+	ALL_OBJ.clear();
+	ALL_OBS.erase(ALL_OBS.begin() + wallArray.size()*8, ALL_OBS.end());
+	objStack = msg;
+	float posX;
+	float posY;
+	for(int i = 0; i< objStack.Batteries.size(); i++){
+		posX = objStack.Batteries[i].x;
+		posY = objStack.Batteries[i].y;
+		objTemp1[0] = posX-batSize/2.0f;
+		objTemp1[1] = posY-batSize/2.0f;
+		objTemp1[2] = posX-batSize/2.0f;
+		objTemp1[3] = posY+batSize/2.0f;
+
+		objTemp2[0] = posX+batSize/2.0f;
+		objTemp2[1] = posY-batSize/2.0f;
+		objTemp2[2] = posX+batSize/2.0f;
+		objTemp2[3] = posY+batSize/2.0f;
+
+		bool test1 = addToObs(objTemp1,1);
+		bool test2 = addToObs(objTemp2,1);
+	}
+	for(int i = 0; i< objStack.Objects.size(); i++){
+		posX = objStack.Objects[i].x;
+		posY = objStack.Objects[i].y;
+		objTemp1[0] = posX-objSize/2.0f;
+		objTemp1[1] = posY-objSize/2.0f;
+		objTemp1[2] = posX-objSize/2.0f;
+		objTemp1[3] = posY+objSize/2.0f;
+
+		objTemp2[0] = posX+objSize/2.0f;
+		objTemp2[1] = posY-objSize/2.0f;
+		objTemp2[2] = posX+objSize/2.0f;
+		objTemp2[3] = posY+objSize/2.0f;
+
+		bool test1 = addToObs(objTemp1,0);
+		bool test2 = addToObs(objTemp2,0);
+	}
+}
+
+
 rosie_map_controller::MapStoring wallStack;
-void initializeObjects(){
-		ALL_OBJ.erase(ALL_OBJ.begin() + wallArray.size(), ALL_OBJ.end());
-		loadSrv.request.request = 1;
-		if(loadClient.call(loadSrv)){
-			objStack = loadSrv.response.objects;
-			wallStack = loadSrv.response.mappings;
-//			object.id = id;
-//			object.x = x;
-//			object.y = y;
-//			object.value = value;
-//			object.name = name;
+void wallCallback2(rosie_map_controller::MapStoring msg){
+			wallStack = msg;
 			float posX;
 			float posY;
-			for(int i = 0; i< objStack.Batteries.size(); i++){
-				posX = objStack.Batteries[i].x;
-				posY = objStack.Batteries[i].y;
-				objTemp1[0] = posX-batSize/2.0f;
-				objTemp1[1] = posY-batSize/2.0f;
-				objTemp1[2] = posX-batSize/2.0f;
-				objTemp1[3] = posY+batSize/2.0f;
-
-				objTemp2[0] = posX+batSize/2.0f;
-				objTemp2[1] = posY-batSize/2.0f;
-				objTemp2[2] = posX+batSize/2.0f;
-				objTemp2[3] = posY+batSize/2.0f;
-
-				bool test1 = addToObs(objTemp1,1);
-				bool test2 = addToObs(objTemp2,1);
-			}
-			for(int i = 0; i< objStack.Objects.size(); i++){
-				posX = objStack.Objects[i].x;
-				posY = objStack.Objects[i].y;
-				objTemp1[0] = posX-objSize/2.0f;
-				objTemp1[1] = posY-objSize/2.0f;
-				objTemp1[2] = posX-objSize/2.0f;
-				objTemp1[3] = posY+objSize/2.0f;
-
-				objTemp2[0] = posX+objSize/2.0f;
-				objTemp2[1] = posY-objSize/2.0f;
-				objTemp2[2] = posX+objSize/2.0f;
-				objTemp2[3] = posY+objSize/2.0f;
-
-				bool test1 = addToObs(objTemp1,0);
-				bool test2 = addToObs(objTemp2,0);
-			}
 
 			for(int i = 0; i< wallStack.NewWalls.size(); i++){
 				if(wallStack.NewWalls[i].certainty >= 0){
@@ -785,6 +785,8 @@ int main(int argc, char **argv){
 
     ros::NodeHandle n;
 		ros::Subscriber wall_sub = n.subscribe<visualization_msgs::MarkerArray>("/maze_map", 1000, wallCallback);
+		ros::Subscriber wallStack_sub = n.subscribe<rosie_map_controller::MapStoring>("/wall_stack", 1000, wallCallback2);
+		ros::Subscriber objStack_sub = n.subscribe<rosie_map_controller::ObjectStoring>("/object_stack", 1000, objCallback);
 		ros::Subscriber pose_sub = n.subscribe<nav_msgs::Odometry>("/odom", 10, currentPoseCallback);
 		//ros::Subscriber evidence_sub = n.subscribe<rosie_object_detector::RAS_Evidence>("/evidence",10, evidenceCallback);
     path_pub = n.advertise<nav_msgs::Path>("/rosie_path",1);
