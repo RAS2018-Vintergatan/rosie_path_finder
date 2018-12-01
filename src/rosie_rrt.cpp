@@ -250,9 +250,13 @@ void wallCallback(const visualization_msgs::MarkerArray msg){
 } */
 
 nav_msgs::Odometry pose;
-
+bool poseInitializing = 0;
 void currentPoseCallback(nav_msgs::Odometry msg){ // for re-calculation of the path when needed
-    pose = msg;
+	if(poseInitializing){
+		return;
+	}
+	poseInitializing = 1;
+    	pose = msg;
 		//pose.pose.pose.position.x = 0.25f;
 		//pose.pose.pose.position.y = 0.40f;
 }
@@ -266,7 +270,12 @@ std::vector<float> objWeighting;
 //std::vector<rosie_map_controller::ObjectPosition> objStack;
 //std::vector<rosie_map_controller::BatteryPosition> batStack;
 rosie_map_controller::ObjectStoring objStack;
+bool objCallInitializing;
 void objCallback(rosie_map_controller::ObjectStoring msg){
+	if(objCallInitializing){
+		return;
+	}
+	//objCallInitializing = 1;
 	ALL_OBJ.clear();
 	ALL_OBS.clear();
 	objStack = msg;
@@ -309,7 +318,12 @@ void objCallback(rosie_map_controller::ObjectStoring msg){
 
 rosie_map_controller::MapStoring wallStack;
 
+bool mapInitializing = 0;
 void wallCallback2(rosie_map_controller::MapStoring msg){
+	if(mapInitializing){
+		return;
+	}	
+	mapInitializing = 1;
 	wallStack = msg;
 	float posX;
 	float posY;
@@ -437,10 +451,10 @@ bool ints5;
 bool ints6;
 
 bool checkIntersect(Node n2, Node n1){         //array definition might be wrong
-		float A[]= {n1.pos[0],n1.pos[1]};
+    float A[]= {n1.pos[0],n1.pos[1]};
     float B[]= {n2.pos[0],n2.pos[1]};
-		float center[2];
-		nc = true;
+    float center[2];
+    nc = true;
     for(int i =0 ; i<ALL_OBS.size(); i = i+8){
 			//ROS_INFO("ALL OBS size %d", ALL_OBS.size());
 				p1[0] =ALL_OBS[i];
@@ -458,7 +472,13 @@ bool checkIntersect(Node n2, Node n1){         //array definition might be wrong
 				 ints3 = isIntersecting(p3,p2,A,B);
 				 ints4 = isIntersecting(p3,p4,A,B);
 
-      	if(ints1==0 and ints2==0 and ints3==0 and ints4==0 and nc ==1){
+				 center[0] = (p2[0]-p1[0])/2;
+				 center[1] = (p2[1]-p1[1])/2;
+				 ints5 = isIntersectingCap(center, A, B);
+				 center[0] = (p3[0]-p4[0])/2;
+				 center[1] = (p3[1]-p4[1])/2;
+				 ints6 = isIntersectingCap(center, A, B);
+      	if(ints5 == 0 and ints6 == 0 and ints1==0 and ints2==0 and ints3==0 and ints4==0 and nc ==1){
             nc = 1;
         }else{
             nc = 0;
@@ -494,7 +514,7 @@ bool checkIntersect(Node n2, Node n1){         //array definition might be wrong
 				 center[1] = (p3[1]-p4[1])/2;
 				 ints6 = isIntersectingCap(center, A, B);
 
-        if(ints5 == 0 && ints6 == 0 && ints1==0 and ints2==0 and ints3==0 and ints4==0 and nc ==1){
+        if(ints5 == 0 and ints6 == 0 and ints1==0 and ints2==0 and ints3==0 and ints4==0 and nc ==1){
             nc = 1; //is outside c-space
         }else{
             nc = 0; //is inside c-space
@@ -531,7 +551,14 @@ float isGoalInCSpace(float x, float y){
 			 ints3 = isIntersecting(p3,p2,A,center);
 			 ints3 = isIntersecting(p3,p4,A,center);
 
-			if(ints1==0 and ints2==0 and ints3==0 and ints4==0 and nc ==0){
+			/*	 center[0] = (p2[0]-p1[0])/2;
+				 center[1] = (p2[1]-p1[1])/2;
+				 ints5 = isIntersectingCap(center, A, center);
+				 center[0] = (p3[0]-p4[0])/2;
+				 center[1] = (p3[1]-p4[1])/2;
+				 ints6 = isIntersectingCap(center, A, B);
+			*/
+        if( ints1==0 and ints2==0 and ints3==0 and ints4==0 and nc ==1){
 					nc = 0; //is ioutside cspace
 			}else{
 					nc = 1; //is inside cspace
@@ -861,7 +888,7 @@ int main(int argc, char **argv){
 					runRRT(goalx, goaly);
 					pathInitialized = 1;
 					runrrt = 0;
-	7.8938980103		7.8938980103	}
+				}
 				if(pathInitialized){
 					publishPath();
 					path_pub.publish(path);
@@ -888,7 +915,7 @@ int main(int argc, char **argv){
 			lastTargetPose_ptr->header.seq = targetPose_ptr->header.seq;
 			lastTargetPose_ptr->header.frame_id = targetPose_ptr->header.frame_id;
 			lastTargetPose_ptr->header.stamp = targetPose_ptr->header.stamp;
-
+			mode = 0;
 			runRRT(targetPose_ptr->pose.position.x, targetPose_ptr->pose.position.y);
 			publishPath();
 	
@@ -897,7 +924,8 @@ int main(int argc, char **argv){
 		if(pathInitialized){
 			path_pub.publish(path);
 		}
-
+		//poseInitializing = 0;
+		// =0 ;
 		ros::spinOnce();
 		loop_rate.sleep();
 	}	
