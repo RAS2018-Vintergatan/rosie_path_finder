@@ -766,7 +766,7 @@ bool rrtCallback(rosie_path_finder::rrtService::Request &req, rosie_path_finder:
 		targetPose_ptr->pose.position.x = goalx;
 		targetPose_ptr->pose.position.y = goaly;
 		targetPose_ptr->header.seq++;
-	//}
+	}
 	return true;
 }
 
@@ -830,23 +830,24 @@ void pathGoalCallback(const geometry_msgs::PoseStamped& pose){
 }
 
 int main(int argc, char **argv){
-    ros::init(argc, argv, "rosie_rrt");
+	ros::init(argc, argv, "rosie_rrt");
 
-		//target_tfl_ptr.reset(new tf::TransformListener);
+	//target_tfl_ptr.reset(new tf::TransformListener);
 
-    ros::NodeHandle n;
-		//ros::Subscriber wall_sub = n.subscribe<visualization_msgs::MarkerArray>("/maze_map", 1000, wallCallback);
-		ros::Subscriber wallStack_sub = n.subscribe<rosie_map_controller::MapStoring>("/wall_stack", 1000, wallCallback2);
-		ros::Subscriber objStack_sub = n.subscribe<rosie_map_controller::ObjectStoring>("/object_stack", 1000, objCallback);
-		ros::Subscriber pose_sub = n.subscribe<nav_msgs::Odometry>("/odom", 10, currentPoseCallback);
-		//ros::Subscriber evidence_sub = n.subscribe<rosie_object_detector::RAS_Evidence>("/evidence",10, evidenceCallback);
-    path_pub = n.advertise<nav_msgs::Path>("/rosie_path",1);
-		ros::ServiceServer rrtService = n.advertiseService<rosie_path_finder::rrtService::Request, rosie_path_finder::rrtService::Response>("/rrt", rrtCallback);
-		loadClient = n.serviceClient<rosie_map_controller::RequestLoading>("request_load_mapping");
+	ros::NodeHandle n;
+	//ros::Subscriber wall_sub = n.subscribe<visualization_msgs::MarkerArray>("/maze_map", 1000, wallCallback);
+	ros::Subscriber wallStack_sub = n.subscribe<rosie_map_controller::MapStoring>("/wall_stack", 1000, wallCallback2);
+	ros::Subscriber objStack_sub = n.subscribe<rosie_map_controller::ObjectStoring>("/object_stack", 1000, objCallback);
+	ros::Subscriber pose_sub = n.subscribe<nav_msgs::Odometry>("/odom", 10, currentPoseCallback);
+	//ros::Subscriber evidence_sub = n.subscribe<rosie_object_detector::RAS_Evidence>("/evidence",10, evidenceCallback);
+	path_pub = n.advertise<nav_msgs::Path>("/rosie_path",1);
+	ros::ServiceServer rrtService = n.advertiseService<rosie_path_finder::rrtService::Request,
+							 rosie_path_finder::rrtService::Response>("/rrt", rrtCallback);
+	loadClient = n.serviceClient<rosie_map_controller::RequestLoading>("request_load_mapping");
 
-		static tf::TransformBroadcaster br;
-    ros::Rate loop_rate(10);
-	  ros::Time load_time = ros::Time::now();
+	static tf::TransformBroadcaster br;
+	ros::Rate loop_rate(10);
+	ros::Time load_time = ros::Time::now();
 
 
 	targetPose_ptr.reset(new geometry_msgs::PoseStamped);
