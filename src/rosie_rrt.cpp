@@ -797,7 +797,7 @@ int main(int argc, char **argv){
 
     while(ros::ok()){
 
-			if(mapInitialized){
+			//if(mapInitialized){
 				if(runrrt){
 					runRRT(goalx, goaly);
 					pathInitialized = 1;
@@ -813,7 +813,7 @@ int main(int argc, char **argv){
 				qtf.setRPY(0, 0, 0);
 				transform.setRotation( qtf );
 				br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "map", "path"));
-			}
+			//}
 			ros::spinOnce();
 			loop_rate.sleep();
 		}
