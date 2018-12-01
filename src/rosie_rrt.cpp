@@ -304,21 +304,58 @@ void objCallback(rosie_map_controller::ObjectStoring msg){
 
 
 rosie_map_controller::MapStoring wallStack;
+
 void wallCallback2(rosie_map_controller::MapStoring msg){
-			wallStack = msg;
-			float posX;
-			float posY;
+	wallStack = msg;
+	float posX;
+	float posY;
 
-			for(int i = 0; i< wallStack.NewWalls.size(); i++){
-				if(wallStack.NewWalls[i].certainty >= 0){
-					objTemp1[0] = wallStack.NewWalls[i].x1;
-					objTemp1[1] = wallStack.NewWalls[i].y1;
-					objTemp1[2] = wallStack.NewWalls[i].x2;
-					objTemp1[3] = wallStack.NewWalls[i].y2;
+	float minX, minY, maxX, maxY;
+	float sX, sY, eX, eY;
 
-					bool test1 = addToObs(objTemp1,1);
-				}
+	for(int i = 0; i< wallStack.NewWalls.size(); i++){
+		if(wallStack.NewWalls[i].certainty >= 0){
+			objTemp1[0] = wallStack.NewWalls[i].x1;
+			objTemp1[1] = wallStack.NewWalls[i].y1;
+			objTemp1[2] = wallStack.NewWalls[i].x2;
+			objTemp1[3] = wallStack.NewWalls[i].y2;
+
+			bool test1 = addToObs(objTemp1,1);
+		}
+		if(!mapInitialized){
+			if(objTemp1[0] < minX){
+				minX = objTemp1[0];
 			}
+			if(objTemp1[0] > maxX){
+				maxX = objTemp1[0];
+			}
+			if(objTemp1[2] < minX){
+				minX = objTemp1[2];
+			}
+			if(objTemp1[2] > maxX){
+				maxX = objTemp1[2];
+			}
+			if(objTemp1[1] < minY){
+				minY = objTemp1[1];
+			}
+			if(objTemp1[1] > maxY){
+				maxY = objTemp1[1];
+			}
+			if(objTemp1[3] < minY){
+				minY = objTemp1[3];
+			}
+			if(objTemp1[3] > maxY){
+				maxY = objTemp1[3];
+			}	
+		}
+	}
+	if(!mapInitialized){
+		OFFSET[0] = minX;
+		OFFSET[1] = minY;
+
+		XDIM = (maxX - minX);
+		YDIM = (maxY - minY);
+		mapInitialized = 1;
 	}
 }
 
@@ -489,10 +526,6 @@ float isGoalInCSpace(float x, float y){
 			 ints3 = isIntersecting(p3,p2,A,center);
 			 ints3 = isIntersecting(p3,p4,A,center);
 
-			// ints1 = ccw(A,P1,P4) != ccw(B,P1,P4) and ccw(A,B,P1) != ccw(A,B,P4);
-			// ints2 = ccw(A,P1,P2) != ccw(B,P1,P2) and ccw(A,B,P1) != ccw(A,B,P2);
-			// ints3 = ccw(A,P3,P2) != ccw(B,P3,P2) and ccw(A,B,P3) != ccw(A,B,P2);
-			// ints4 = ccw(A,P3,P4) != ccw(B,P3,P4) and ccw(A,B,P3) != ccw(A,B,P4);
 			if(ints1==0 and ints2==0 and ints3==0 and ints4==0 and nc ==0){
 					nc = 0; //is ioutside cspace
 			}else{
@@ -708,7 +741,7 @@ int mode;
 bool runrrt = 0;
 bool rrtCallback(rosie_path_finder::rrtService::Request &req, rosie_path_finder::rrtService::Response &res){
 	if(mapInitialized){
-		initializeObjects();
+		//initializeObjects();
 		goalx = req.goalx;
 		goaly = req.goaly;
 		mode = req.mode;
