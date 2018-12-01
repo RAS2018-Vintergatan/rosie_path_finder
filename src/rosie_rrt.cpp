@@ -164,7 +164,7 @@ bool addToObs(float data[], bool obsOrObj){
 	 //ROS_INFO("addToObs");
 	 return true;
 }
-
+/*
 int numbMarkers;
 float minX, minY, maxX, maxY;
 float czone;
@@ -243,7 +243,7 @@ void wallCallback(const visualization_msgs::MarkerArray msg){
 		//ROS_INFO("map initialized");
 	}
 
-}
+} */
 
 nav_msgs::Odometry pose;
 
@@ -264,7 +264,7 @@ std::vector<float> objWeighting;
 rosie_map_controller::ObjectStoring objStack;
 void objCallback(rosie_map_controller::ObjectStoring msg){
 	ALL_OBJ.clear();
-	ALL_OBS.erase(ALL_OBS.begin() + wallArray.size()*2, ALL_OBS.end());
+	ALL_OBS.clear();
 	objStack = msg;
 	float posX;
 	float posY;
