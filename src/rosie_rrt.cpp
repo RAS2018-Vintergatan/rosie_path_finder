@@ -264,7 +264,7 @@ std::vector<float> objWeighting;
 rosie_map_controller::ObjectStoring objStack;
 void objCallback(rosie_map_controller::ObjectStoring msg){
 	ALL_OBJ.clear();
-	ALL_OBS.erase(ALL_OBS.begin() + wallArray.size()*8, ALL_OBS.end());
+	ALL_OBS.erase(ALL_OBS.begin() + wallArray.size()*2, ALL_OBS.end());
 	objStack = msg;
 	float posX;
 	float posY;
