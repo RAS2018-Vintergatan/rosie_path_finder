@@ -59,6 +59,10 @@ ros::Publisher path_pub;
 ros::ServiceClient loadClient;
 rosie_map_controller::RequestLoading loadSrv;
 
+// Target pose
+boost::shared_ptr<geometry_msgs::PoseStamped> targetPose_ptr;
+boost::shared_ptr<geometry_msgs::PoseStamped> lastTargetPose_ptr;
+
 // Objects and Obstacles (Walls and Batteries)
 std::vector<float> wallArray;
 std::vector<float> ALL_OBS;
@@ -83,7 +87,7 @@ std::vector<geometry_msgs::PoseStamped> allposes;
 
 // state parameters
 int pathseq = 0;
-int mapInitialized = 0;
+char mapInitialized = 0;
 int pathPublished = 0;
 int pathInitialized = 0;
 bool pathFound = 0; //for most valuable object search
@@ -305,20 +309,19 @@ void objCallback(rosie_map_controller::ObjectStoring msg){
 
 rosie_map_controller::MapStoring wallStack;
 void wallCallback2(rosie_map_controller::MapStoring msg){
-			wallStack = msg;
-			float posX;
-			float posY;
+	wallStack = msg;
+	float posX;
+	float posY;
 
-			for(int i = 0; i< wallStack.NewWalls.size(); i++){
-				if(wallStack.NewWalls[i].certainty >= 0){
-					objTemp1[0] = wallStack.NewWalls[i].x1;
-					objTemp1[1] = wallStack.NewWalls[i].y1;
-					objTemp1[2] = wallStack.NewWalls[i].x2;
-					objTemp1[3] = wallStack.NewWalls[i].y2;
+	for(int i = 0; i< wallStack.NewWalls.size(); i++){
+		if(wallStack.NewWalls[i].certainty >= 0){
+			objTemp1[0] = wallStack.NewWalls[i].x1;
+			objTemp1[1] = wallStack.NewWalls[i].y1;
+			objTemp1[2] = wallStack.NewWalls[i].x2;
+			objTemp1[3] = wallStack.NewWalls[i].y2;
 
-					bool test1 = addToObs(objTemp1,1);
-				}
-			}
+			bool test1 = addToObs(objTemp1,1);
+		}
 	}
 }
 
@@ -707,8 +710,8 @@ float goaly;
 int mode;
 bool runrrt = 0;
 bool rrtCallback(rosie_path_finder::rrtService::Request &req, rosie_path_finder::rrtService::Response &res){
-	if(mapInitialized){
-		initializeObjects();
+	//if(mapInitialized){
+		//initializeObjects();
 		goalx = req.goalx;
 		goaly = req.goaly;
 		mode = req.mode;
@@ -723,7 +726,7 @@ bool rrtCallback(rosie_path_finder::rrtService::Request &req, rosie_path_finder:
 			runrrt = 1;
 			res.tar_num = target_num;
 		}
-	}
+	//}
 	return true;
 }
 
@@ -772,11 +775,19 @@ void publishPath(){
 		path.poses[i] = allposes[i];
 	}
 	pathseq++;
+	pathInitialized = 1;
 	//path.poses = poses;
 	//ROS_INFO("Checkpoint");
 
 }
 
+void pathGoalCallback(const geometry_msgs::PoseStamped& pose){
+	targetPose_ptr->pose.position.x = pose.pose.position.x;
+	targetPose_ptr->pose.position.y = pose.pose.position.y;
+	targetPose_ptr->header.seq = pose.header.seq;
+	targetPose_ptr->header.frame_id = pose.header.frame_id;
+	targetPose_ptr->header.stamp = pose.header.stamp;
+}
 
 int main(int argc, char **argv){
     ros::init(argc, argv, "rosie_rrt");
@@ -797,15 +808,21 @@ int main(int argc, char **argv){
     ros::Rate loop_rate(10);
 	  ros::Time load_time = ros::Time::now();
 
-    while(ros::ok()){
 
-			if(mapInitialized){
+	targetPose_ptr.reset(new geometry_msgs::PoseStamped);
+	lastTargetPose_ptr.reset(new geometry_msgs::PoseStamped);
+	ros::Subscriber target_pose_sub = n.subscribe("/rosie_path_goal",1,pathGoalCallback);
+
+    while(ros::ok()){
+			/*
+			//if(mapInitialized){
 				if(runrrt){
 					runRRT(goalx, goaly);
 					pathInitialized = 1;
 					runrrt = 0;
-				}
+	7.8938980103		7.8938980103	}
 				if(pathInitialized){
+					publishPath();
 					path_pub.publish(path);
 					ROS_INFO("path published");
 				}
@@ -815,8 +832,30 @@ int main(int argc, char **argv){
 				qtf.setRPY(0, 0, 0);
 				transform.setRotation( qtf );
 				br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "map", "path"));
-			}
+			//}*/
+		if(!mapInitialized){
 			ros::spinOnce();
 			loop_rate.sleep();
+			continue;
+		}		
+	
+		if(targetPose_ptr->header.seq != lastTargetPose_ptr->header.seq){
+
+			lastTargetPose_ptr->pose.position.x = targetPose_ptr->pose.position.x;
+			lastTargetPose_ptr->pose.position.y = targetPose_ptr->pose.position.y;
+			lastTargetPose_ptr->header.seq = targetPose_ptr->header.seq;
+			lastTargetPose_ptr->header.frame_id = targetPose_ptr->header.frame_id;
+			lastTargetPose_ptr->header.stamp = targetPose_ptr->header.stamp;
+
+			runRRT(targetPose_ptr->pose.position.x, targetPose_ptr->pose.position.y);
+			publishPath();
+	
 		}
+		if(pathInitialized){
+			path_pub.publish(path);
+		}
+
+		ros::spinOnce();
+		loop_rate.sleep();
+	}	
 }
