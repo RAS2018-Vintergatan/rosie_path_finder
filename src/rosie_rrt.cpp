@@ -346,7 +346,7 @@ void wallCallback2(rosie_map_controller::MapStoring msg){
 			}
 			if(objTemp1[3] > maxY){
 				maxY = objTemp1[3];
-			}	
+			}
 		}
 	}
 	if(!mapInitialized){
@@ -785,14 +785,27 @@ void publishPath(){
 			if(i > 0){
 					newpose.pose.orientation.z =(float) atan2((finalpathy[i]-finalpathy[i+1]),(finalpathx[i]-finalpathx[i+1]));
 			}else if( i == 0){
-				int cspaceCheck = isGoalInCSpace(finalpathx[i], finalpathy[i]);
-				if(cspaceCheck == 100){
+				Node secondlast (finalpathx[i+1], finalpathy[i+1], 0, 0);
+				Node last (finalpathx[i], finalpathy[i], 0, 0);
+				//int cspaceCheck = isGoalInCSpace(finalpathx[i], finalpathy[i]);
+				//if(checkIntersect(last, secondlast)){
 					//newpose.pose.orientation.z =(float) atan2((finalpathy[i-1]-finalpathy[i]),(finalpathx[i-1]-finalpathx[i]));
-				}else{
-					newpose.pose.orientation.z = cspaceCheck+PI;
-				}
+				//	newpose.pose.orientation.z = newpose.pose.orientation.z;
+				//}else{
+					std::srand();
+					last.pos[0] += rand() % 5 / 100.0;
+					std::srand();
+					last.pos[1] += rand() % 5 / 100.0;
+					while(!checkIntersect(last,secondlast)){
+						std::srand();
+						last.pos[0] += std::rand() % 5 / 100.0;
+						std::srand();
+						last.pos[1] += std::rand() % 5 / 100.0;
+					}
+					newpose.pose.orientation.z = std::atan2({secondlast.pos[1]-last.pos[1], secondlast.pos[0]-last.pos[0]);
+				//}
 			}
-			newpose.pose.orientation.z = 0;
+			//newpose.pose.orientation.z = 0;
 			ROS_INFO("%f %f", newpose.pose.position.x, newpose.pose.position.y);
 			//poses[i] = newpose;
 			allposes.push_back(newpose);

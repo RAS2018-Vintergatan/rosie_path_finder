@@ -3,3 +3,5 @@ float32 goaly
 int8 mode
 ---
 int8 tar_num
+float32 goalx
+float32 goaly
