@@ -1,6 +1,8 @@
 #include <ros/ros.h>
 #include <ros/time.h>
-
+#include <ctime>
+#include <cstdlib>
+#include <iostream>
 #include <std_msgs/Float32.h>
 #include <std_msgs/UInt8.h>
 #include <std_msgs/Int16.h>
@@ -53,6 +55,7 @@ float OFFSET[] = {0.0f, 0.00f};
 float HOME[] = {startx, starty};
 int NUMNODES = 3000;
 float robotsize = 0.2f;
+int mode;
 
 // Publisher
 ros::Publisher path_pub;
@@ -67,6 +70,7 @@ boost::shared_ptr<geometry_msgs::PoseStamped> lastTargetPose_ptr;
 std::vector<float> wallArray;
 std::vector<float> ALL_OBS;
 std::vector<float> ALL_OBJ;
+std::vector<float> ALL_WALL;
 float objSize = 0.05f;
 int objNumber = 14;
 std::vector<float> objPoseX;
@@ -110,7 +114,7 @@ float n;
 float co;
 float si;
 
-bool addToObs(float data[], bool obsOrObj){
+bool addToObs(float data[], int obsOrObj){
 			float p[4];
 
 			//float abst = sqrt(pow(OBS[i+2]-OBS[i+0],2.0)+pow(OBS[i+3]-OBS[i+1],2.0));
@@ -137,15 +141,14 @@ bool addToObs(float data[], bool obsOrObj){
 			diffx = p[2]-p[0];
 			diffy = p[3]-p[1];
 			m = (float) atan2(diffy, diffx);
-			//ROS_INFO("m %f",m);
+			//ROS_ERROR("m %f",m);
 			co = r*cos(m);
 			si = r*sin(m);
 
-			//x_1 = p[0] - co;
-			//y_1 = p[1] - si;
-			//x_2 = p[2] + co;
-			//y_2 = p[3] + si;
-			//m = m+PI/(2.0f);
+			x_1 = p[0] - co;
+			y_1 = p[1] - si;
+			x_2 = p[2] + co;
+			y_2 = p[3] + si;
 			si = r*cos(m);
 			co = r*sin(m);
 			 P[0] = x_1-co;
@@ -156,98 +159,20 @@ bool addToObs(float data[], bool obsOrObj){
 			 P[5] = y_2-si;
 			 P[6] = x_2-co;
 			 P[7] = y_2+si;
-			 ROS_INFO("%f %f %f %f %f %f %f %f", P[0], P[1], P[2], P[3], P[4], P[5], P[6], P[7] );
+			 //ROS_ERROR("%f %f %f %f %f %f %f %f", P[0], P[1], P[2], P[3], P[4], P[5], P[6], P[7] );
 		for(int i=0;i<8;i++){
-			if(obsOrObj){
+			if(obsOrObj==1){
 				 ALL_OBS.push_back(P[i]);
-			}else{
+			}else if(obsOrObj==0){
 				 ALL_OBJ.push_back(P[i]);
+			}else if(obsOrObj ==2){
+				ALL_WALL.push_back(P[i]);
 			}
 
 	 }
 	 //ROS_INFO("addToObs");
 	 return true;
 }
-/*
-int numbMarkers;
-float minX, minY, maxX, maxY;
-float czone;
-float sX, sY, eX, eY;
-void wallCallback(const visualization_msgs::MarkerArray msg){
-	if(!mapInitialized){
-		//ROS_INFO("Initializing!");
-		numbMarkers = msg.markers.size();
-		czone = robotsize/(2.0f) + 0.02f; //additional extra security distance
-
-		wallArray.clear();
-		wallArray.resize(4*numbMarkers);
-		for(int i = 0; i < 4*numbMarkers; ++i){
-			wallArray[i] = -1.0f;
-		}
-
-
-		minX = minY = maxX = maxY = 0;
-		for(int k = 0; k < numbMarkers; ++k){
-			//Extract point data
-			std::string pointsText = msg.markers[k].text;
-			std::stringstream ss(pointsText);
-
-			ss>>sX;
-			ss>>sY;
-			ss>>eX;
-			ss>>eY;
-
-			//Set point data on every 4th index
-			wallArray[k<<2]=sX;
-			wallArray[(k<<2)+1]=sY;
-			wallArray[(k<<2)+2]=eX;
-			wallArray[(k<<2)+3]=eY;
-
-			if(sX < minX){
-				minX = sX;
-			}
-			if(sX > maxX){
-				maxX = sX;
-			}
-			if(eX < minX){
-				minX = eX;
-			}
-			if(eX > maxX){
-				maxX = eX;
-			}
-			if(sY < minY){
-				minY = sY;
-			}
-			if(sY > maxY){
-				maxY = sY;
-			}
-			if(eY < minY){
-				minY = eY;
-			}
-			if(eY > maxY){
-				maxY = eY;
-			}
-		}
-
-		OFFSET[0] = minX;
-		OFFSET[1] = minY;
-
-		XDIM = (maxX - minX);
-		YDIM = (maxY - minY);
-		float single_wall[4];
-		for(int i = 0; i<(wallArray.size()); i=i+4){
-			single_wall[0] = wallArray[i];
-			single_wall[1] = wallArray[i+1];
-			single_wall[2] = wallArray[i+2];
-			single_wall[3] = wallArray[i+3];
-			//ROS_INFO("Wall");
-			bool test1 = addToObs(single_wall,1);
-		}
-		mapInitialized = 1;
-		//ROS_INFO("map initialized");
-	}
-
-} */
 
 nav_msgs::Odometry pose;
 bool poseInitializing = 0;
@@ -263,24 +188,22 @@ void currentPoseCallback(nav_msgs::Odometry msg){ // for re-calculation of the p
 
 float objTemp1[4];
 float objTemp2[4];
-bool objInitialized = 0;
 std::vector<int> objectID;
 std::vector<float> objWeighting;
-
-//std::vector<rosie_map_controller::ObjectPosition> objStack;
-//std::vector<rosie_map_controller::BatteryPosition> batStack;
 rosie_map_controller::ObjectStoring objStack;
-bool objCallInitializing;
+bool objCallInitializing = 0;
+bool objInitialized = 0;
 void objCallback(rosie_map_controller::ObjectStoring msg){
 	if(objCallInitializing){
 		return;
 	}
-	//objCallInitializing = 1;
+	objCallInitializing = 1;
 	ALL_OBJ.clear();
 	ALL_OBS.clear();
 	objStack = msg;
 	float posX;
 	float posY;
+	//ROS_ERROR("objStack %d %d",objStack.Batteries.size(), objStack.Objects.size());
 	for(int i = 0; i< objStack.Batteries.size(); i++){
 		posX = objStack.Batteries[i].x;
 		posY = objStack.Batteries[i].y;
@@ -288,12 +211,12 @@ void objCallback(rosie_map_controller::ObjectStoring msg){
 		objTemp1[1] = posY-batSize/2.0f;
 		objTemp1[2] = posX-batSize/2.0f;
 		objTemp1[3] = posY+batSize/2.0f;
-
+		//ROS_ERROR("bat %f %f %f %f",objTemp1[0], objTemp1[1], objTemp1[2], objTemp1[3] );
 		objTemp2[0] = posX+batSize/2.0f;
 		objTemp2[1] = posY-batSize/2.0f;
 		objTemp2[2] = posX+batSize/2.0f;
 		objTemp2[3] = posY+batSize/2.0f;
-
+		//("bat %f %f %f %f",objTemp2[0], objTemp2[1], objTemp2[2], objTemp2[3] );
 		bool test1 = addToObs(objTemp1,1);
 		bool test2 = addToObs(objTemp2,1);
 	}
@@ -304,15 +227,16 @@ void objCallback(rosie_map_controller::ObjectStoring msg){
 		objTemp1[1] = posY-objSize/2.0f;
 		objTemp1[2] = posX-objSize/2.0f;
 		objTemp1[3] = posY+objSize/2.0f;
-
+		//ROS_ERROR("obj %f %f %f %f",objTemp1[0], objTemp1[1], objTemp1[2], objTemp1[3] );
 		objTemp2[0] = posX+objSize/2.0f;
 		objTemp2[1] = posY-objSize/2.0f;
 		objTemp2[2] = posX+objSize/2.0f;
 		objTemp2[3] = posY+objSize/2.0f;
-
+		//ROS_ERROR("obj %f %f %f %f",objTemp2[0], objTemp2[1], objTemp2[2], objTemp2[3] );
 		bool test1 = addToObs(objTemp1,0);
 		bool test2 = addToObs(objTemp2,0);
 	}
+	objInitialized = 1;
 }
 
 
@@ -324,11 +248,13 @@ void wallCallback2(rosie_map_controller::MapStoring msg){
 		return;
 	}	
 	mapInitializing = 1;
+	mapInitialized = 0;
+	ALL_WALL.clear();
 	wallStack = msg;
 	float posX;
 	float posY;
 
-	float minX, minY, maxX, maxY;
+	float minX= 0, minY=0, maxX= 0, maxY = 0;
 	float sX, sY, eX, eY;
 
 	for(int i = 0; i< wallStack.NewWalls.size(); i++){
@@ -337,8 +263,8 @@ void wallCallback2(rosie_map_controller::MapStoring msg){
 			objTemp1[1] = wallStack.NewWalls[i].y1;
 			objTemp1[2] = wallStack.NewWalls[i].x2;
 			objTemp1[3] = wallStack.NewWalls[i].y2;
-
-			bool test1 = addToObs(objTemp1,1);
+			//ROS_ERROR("wall %f %f %f %f %d",objTemp1[0] ,objTemp1[1], objTemp1[2], objTemp1[3], wallStack.NewWalls[i].certainty);
+			bool test1 = addToObs(objTemp1,2);
 		}
 
 		if(!mapInitialized){
@@ -371,9 +297,10 @@ void wallCallback2(rosie_map_controller::MapStoring msg){
 	if(!mapInitialized){
 		OFFSET[0] = minX;
 		OFFSET[1] = minY;
-
+		//ROS_ERROR("Offset %f, %f", OFFSET[0], OFFSET[1]);
 		XDIM = (maxX - minX);
 		YDIM = (maxY - minY);
+		//ROS_ERROR("XDIM %f, YDIM %f", XDIM, YDIM);
 		mapInitialized = 1;
 	}
 }
@@ -454,7 +381,41 @@ bool checkIntersect(Node n2, Node n1){         //array definition might be wrong
     float A[]= {n1.pos[0],n1.pos[1]};
     float B[]= {n2.pos[0],n2.pos[1]};
     float center[2];
-    nc = true;
+    nc = 1;
+    for(int i =0 ; i<ALL_WALL.size(); i = i+8){
+			//ROS_INFO("ALL OBS size %d", ALL_WALL.size());
+				p1[0] =ALL_WALL[i];
+				p1[1] =ALL_WALL[i+1];
+				p2[0] =ALL_WALL[i+2];
+				p2[1] =ALL_WALL[i+3];
+				p3[0] =ALL_WALL[i+4];
+				p3[1] =ALL_WALL[i+5];
+				p4[0] =ALL_WALL[i+6];
+				p4[1] =ALL_WALL[i+7];
+				//ROS_INFO("x1 %f y1 %f x2 %f y2 %f", p1[0], p1[1], p2[0], p2[1] );
+
+				 ints1 = isIntersecting(p1,p2,A,B);
+				 ints2 = isIntersecting(p1,p4,A,B);
+				 ints3 = isIntersecting(p3,p2,A,B);
+				 ints4 = isIntersecting(p3,p4,A,B);
+
+				 center[0] = (p2[0]-p1[0])/2;
+				 center[1] = (p2[1]-p1[1])/2;
+				 ints5 = isIntersectingCap(center, A, B);
+				 center[0] = (p3[0]-p4[0])/2;
+				 center[1] = (p3[1]-p4[1])/2;
+				 ints6 = isIntersectingCap(center, A, B);
+      	//if(ints5 == 0 and ints6 == 0 and ints1==0 and ints2==0 and ints3==0 and ints4==0 and nc ==1){
+      	if(ints1==0 and ints2==0 and ints3==0 and ints4==0 and nc ==1){
+            nc = 1; //no intersection
+	    
+        }else{
+            nc = 0;
+	    break;
+        }
+
+    }
+
     for(int i =0 ; i<ALL_OBS.size(); i = i+8){
 			//ROS_INFO("ALL OBS size %d", ALL_OBS.size());
 				p1[0] =ALL_OBS[i];
@@ -478,10 +439,13 @@ bool checkIntersect(Node n2, Node n1){         //array definition might be wrong
 				 center[0] = (p3[0]-p4[0])/2;
 				 center[1] = (p3[1]-p4[1])/2;
 				 ints6 = isIntersectingCap(center, A, B);
-      	if(ints5 == 0 and ints6 == 0 and ints1==0 and ints2==0 and ints3==0 and ints4==0 and nc ==1){
+      	//if(ints5 == 0 and ints6 == 0 and ints1==0 and ints2==0 and ints3==0 and ints4==0 and nc ==1){
+	if(ints1==0 and ints2==0 and ints3==0 and ints4==0 and nc ==1){
             nc = 1;
+	    
         }else{
             nc = 0;
+	    break;
         }
 
     }
@@ -514,10 +478,13 @@ bool checkIntersect(Node n2, Node n1){         //array definition might be wrong
 				 center[1] = (p3[1]-p4[1])/2;
 				 ints6 = isIntersectingCap(center, A, B);
 
-        if(ints5 == 0 and ints6 == 0 and ints1==0 and ints2==0 and ints3==0 and ints4==0 and nc ==1){
+       // if(ints5 == 0 and ints6 == 0 and ints1==0 and ints2==0 and ints3==0 and ints4==0 and nc ==1){
+	if(ints1==0 and ints2==0 and ints3==0 and ints4==0 and nc ==1){
             nc = 1; //is outside c-space
+	    
         }else{
             nc = 0; //is inside c-space
+	    break;
         }
 
     }
@@ -529,7 +496,7 @@ float isGoalInCSpace(float x, float y){
 	float A[] = {x, y};
 	float center[2];
 	float m;
-	nc = 0;
+	nc = 1;
 	for(int i =0 ; i<ALL_OBS.size(); i = i+8){
 
 			p1[0] =ALL_OBS[i];
@@ -559,7 +526,91 @@ float isGoalInCSpace(float x, float y){
 				 ints6 = isIntersectingCap(center, A, B);
 			*/
         if( ints1==0 and ints2==0 and ints3==0 and ints4==0 and nc ==1){
+					nc = 0; //is inside cspace
+					break;
+			}else{
+					nc = 1; //is outside cspace
+			}
+
+	}
+	if(nc == 0){
+		return m;
+	}
+
+	for(int i =0 ; i<ALL_OBJ.size(); i = i+8){
+			if(mode == 1 && i/8 == target_num){
+				continue;
+			}
+			p1[0] =ALL_OBJ[i];
+			p1[1] =ALL_OBJ[i+1];
+			p2[0] =ALL_OBJ[i+2];
+			p2[1] =ALL_OBJ[i+3];
+			p3[0] =ALL_OBJ[i+4];
+			p3[1] =ALL_OBJ[i+5];
+			p4[0] =ALL_OBJ[i+6];
+			p4[1] =ALL_OBJ[i+7];
+			center[0] = (p3[0]-p1[0])/2;
+			center[1]	= (p3[1]-p1[1])/2;
+			m= (float) atan2((p2[1]-p1[1]), (p2[0]-p1[0]));
+
+			//ROS_INFO("x1 %f y1 %f x2 %f y2 %f", p1[0], p1[1], p2[0], p2[1] );
+
+			 ints1 = isIntersecting(p1,p2,A,center);
+			 ints2 = isIntersecting(p1,p4,A,center);
+			 ints3 = isIntersecting(p3,p2,A,center);
+			 ints3 = isIntersecting(p3,p4,A,center);
+
+			/*	 center[0] = (p2[0]-p1[0])/2;
+				 center[1] = (p2[1]-p1[1])/2;
+				 ints5 = isIntersectingCap(center, A, center);
+
+				 center[0] = (p3[0]-p4[0])/2;
+				 center[1] = (p3[1]-p4[1])/2;
+				 ints6 = isIntersectingCap(center, A, B);
+			*/
+        if( ints1==0 and ints2==0 and ints3==0 and ints4==0 and nc ==1){
+					nc = 0; //is inside cspace
+					break;
+			}else{
+					nc = 1; //is outside cspace
+			}
+
+	}
+	if(nc == 0){
+		return m;
+	}
+	for(int i =0 ; i<ALL_WALL.size(); i = i+8){
+
+			p1[0] =ALL_WALL[i];
+			p1[1] =ALL_WALL[i+1];
+			p2[0] =ALL_WALL[i+2];
+			p2[1] =ALL_WALL[i+3];
+			p3[0] =ALL_WALL[i+4];
+			p3[1] =ALL_WALL[i+5];
+			p4[0] =ALL_WALL[i+6];
+			p4[1] =ALL_WALL[i+7];
+			center[0] = (p3[0]-p1[0])/2;
+			center[1]	= (p3[1]-p1[1])/2;
+			m= (float) atan2((p2[1]-p1[1]), (p2[0]-p1[0]));
+
+			//ROS_INFO("x1 %f y1 %f x2 %f y2 %f", p1[0], p1[1], p2[0], p2[1] );
+
+			 ints1 = isIntersecting(p1,p2,A,center);
+			 ints2 = isIntersecting(p1,p4,A,center);
+			 ints3 = isIntersecting(p3,p2,A,center);
+			 ints3 = isIntersecting(p3,p4,A,center);
+
+			/*	 center[0] = (p2[0]-p1[0])/2;
+				 center[1] = (p2[1]-p1[1])/2;
+				 ints5 = isIntersectingCap(center, A, center);
+
+				 center[0] = (p3[0]-p4[0])/2;
+				 center[1] = (p3[1]-p4[1])/2;
+				 ints6 = isIntersectingCap(center, A, B);
+			*/
+        if( ints1==0 and ints2==0 and ints3==0 and ints4==0 and nc ==1){
 					nc = 0; //is ioutside cspace
+					break;
 			}else{
 					nc = 1; //is inside cspace
 			}
@@ -602,7 +653,18 @@ void runRRT(float goalPositionX, float goalPositionY){
 		std::vector<Node> nodes;
 		std::vector<Node> q_nearest;
     std::vector<float> ndist;
-		Node start (pose.pose.pose.position.x+OFFSET[0], pose.pose.pose.position.y+OFFSET[1],0, 0);
+		//Node start (pose.pose.pose.position.x+OFFSET[0], pose.pose.pose.position.y+OFFSET[1],0, 0);
+		Node newpose (pose.pose.pose.position.x, pose.pose.pose.position.y, 0, 0);
+		Node start (pose.pose.pose.position.x, pose.pose.pose.position.y,0, 0);
+		while(!checkIntersect(start, newpose)){
+			std::srand(ros::Time::now().toSec()); 
+			newpose.pos[0] = ((float)(std::rand()%20 - 10.0))/100.0f + start.pos[0];
+			std::srand(ros::Time::now().toSec()); 
+			newpose.pos[0] = ((float)(std::rand()%20 - 10.0))/100.0f + start.pos[1];
+			//ROS_ERROR("%f %f", startposex, startposey);
+		}
+		start = newpose;
+		//ROS_ERROR("pose: %f, %f", pose.pose.pose.position.x, pose.pose.pose.position.y);
 		Node goal (0,0,0,0);
 		goal = Node(goalPositionX, goalPositionY, 0,0);
 		nodes.push_back(start);
@@ -623,14 +685,14 @@ void runRRT(float goalPositionX, float goalPositionY){
 		std::vector<float> distances;
 		std::vector<float> points;
 		for(int ctr = 0; ctr<NUMNODES; ctr++){
-			//ROS_INFO(" ctr %d",ctr);
+			//ROS_ERROR(" ctr %d",ctr);
 			for(int j = 0; j<nodes.size(); j++){
 					if(  (sqrt(pow(nodes[j].pos[0]-goal.pos[0], 2) + pow(nodes[j].pos[1]-goal.pos[1],2)) <= r1)){
 						pathFound = 1;
 					}
 			}
 			if(pathFound == 1){
-				ROS_INFO("node set to goal");
+				ROS_ERROR("node set to goal");
 				break;
 			}
 			q_rand.pos[0] = randZO(0,XDIM);
@@ -769,15 +831,16 @@ int getBestObject(){
 
 float goalx;
 float goaly;
-int mode;
+
 bool runrrt = 0;
 bool rrtCallback(rosie_path_finder::rrtService::Request &req, rosie_path_finder::rrtService::Response &res){
+	
 	if(mapInitialized){
-		//initializeObjects();
+		ROS_ERROR("sth comming");
 		goalx = req.goalx;
 		goaly = req.goaly;
 		mode = req.mode;
-
+		//ROS_ERROR("goalx %f, goal y %f, mode %d", goalx,goaly, mode);
 		if(mode == 0){
 			target_num = -1;
 			res.tar_num = target_num;
@@ -789,10 +852,6 @@ bool rrtCallback(rosie_path_finder::rrtService::Request &req, rosie_path_finder:
 			runrrt = 1;
 			res.tar_num = target_num;
 		}
-
-		targetPose_ptr->pose.position.x = goalx;
-		targetPose_ptr->pose.position.y = goaly;
-		targetPose_ptr->header.seq++;
 	}
 	return true;
 }
@@ -830,7 +889,7 @@ void publishPath(){
 				}
 			}
 			newpose.pose.orientation.z = 0;
-			ROS_INFO("%f %f", newpose.pose.position.x, newpose.pose.position.y);
+			//ROS_ERROR("%f %f", newpose.pose.position.x, newpose.pose.position.y);
 			//poses[i] = newpose;
 			allposes.push_back(newpose);
 
@@ -846,14 +905,6 @@ void publishPath(){
 	//path.poses = poses;
 	//ROS_INFO("Checkpoint");
 
-}
-
-void pathGoalCallback(const geometry_msgs::PoseStamped& pose){
-	targetPose_ptr->pose.position.x = pose.pose.position.x;
-	targetPose_ptr->pose.position.y = pose.pose.position.y;
-	targetPose_ptr->header.seq = pose.header.seq;
-	targetPose_ptr->header.frame_id = pose.header.frame_id;
-	targetPose_ptr->header.stamp = pose.header.stamp;
 }
 
 int main(int argc, char **argv){
@@ -876,55 +927,39 @@ int main(int argc, char **argv){
 	ros::Rate loop_rate(10);
 	ros::Time load_time = ros::Time::now();
 
-
-	targetPose_ptr.reset(new geometry_msgs::PoseStamped);
-	lastTargetPose_ptr.reset(new geometry_msgs::PoseStamped);
-	ros::Subscriber target_pose_sub = n.subscribe("/rosie_path_goal",1,pathGoalCallback);
-
     while(ros::ok()){
-			/*
-			//if(mapInitialized){
-				if(runrrt){
-					runRRT(goalx, goaly);
-					pathInitialized = 1;
-					runrrt = 0;
-				}
-				if(pathInitialized){
-					publishPath();
-					path_pub.publish(path);
-					ROS_INFO("path published");
-				}
-				tf::Transform transform;
-				transform.setOrigin( tf::Vector3(0,0, 0) );
-				tf::Quaternion qtf;
-				qtf.setRPY(0, 0, 0);
-				transform.setRotation( qtf );
-				br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "map", "path"));
-			//}*/
+			
+		if(mapInitialized){
+			if(runrrt){
+				runrrt = 0;
+				ROS_ERROR("RUNRRT");
+				runRRT(goalx, goaly);
+				publishPath();
+				pathInitialized = 1;
+			}
+			if(pathInitialized){
+				
+				path_pub.publish(path);
+				//ROS_INFO("path published");
+			}
+			tf::Transform transform;
+			transform.setOrigin( tf::Vector3(0,0, 0) );
+			tf::Quaternion qtf;
+			qtf.setRPY(0, 0, 0);
+			transform.setRotation( qtf );
+			br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "map", "path"));
+		}
 		
 		if(!mapInitialized){
 			ros::spinOnce();
 			loop_rate.sleep();
 			continue;
 		}		
-	
-		if(targetPose_ptr->header.seq != lastTargetPose_ptr->header.seq){
-
-			lastTargetPose_ptr->pose.position.x = targetPose_ptr->pose.position.x;
-			lastTargetPose_ptr->pose.position.y = targetPose_ptr->pose.position.y;
-			lastTargetPose_ptr->header.seq = targetPose_ptr->header.seq;
-			lastTargetPose_ptr->header.frame_id = targetPose_ptr->header.frame_id;
-			lastTargetPose_ptr->header.stamp = targetPose_ptr->header.stamp;
-			mode = 0;
-			runRRT(targetPose_ptr->pose.position.x, targetPose_ptr->pose.position.y);
-			publishPath();
-	
-		}
-
-		if(pathInitialized){
-			path_pub.publish(path);
-		}
-		//poseInitializing = 0;
+		
+		poseInitializing = 0;
+		objCallInitializing = 0;
+		mapInitializing = 0;
+		mapInitialized= 0;
 		// =0 ;
 		ros::spinOnce();
 		loop_rate.sleep();
