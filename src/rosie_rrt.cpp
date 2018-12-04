@@ -49,14 +49,14 @@ ros::ServiceClient pathClient;
 
 // RRT parameter
 float PI = 3.1415926f;
-float EPSILON = 0.120f;
+float EPSILON = 0.050f;
 float XDIM = 2.40;
 float YDIM = 2.40;
 float startx = 0.200f;
 float starty = 0.400f;
 float OFFSET[] = {0.0f, 0.00f};
 float HOME[] = {startx, starty};
-int NUMNODES = 3000;
+int NUMNODES = 10000;
 float robotsize = 0.2f;
 int mode;
 
@@ -664,8 +664,8 @@ void runRRT(float goalPositionX, float goalPositionY){
 		nodes.push_back(start);
 		pathFound = 0;
 		Node q_rand (randZO(0, XDIM),randZO(0,YDIM),0,0);
-		float r1 = 0.200f;
-		float r2 = 0.20f;
+		float r1 = 0.1500f;
+		float r2 = 0.050f;
 		float temp_dist = 0.0f;
 		float ncoord[2];
 		float smallest_dist = 1.0f;
@@ -887,7 +887,7 @@ void publishPath(){
 			if(i > 0){
 					newpose.pose.orientation.z =(float) atan2((finalpathy[i]-finalpathy[i+1]),(finalpathx[i]-finalpathx[i+1]));
 			}else if( i == 0){
-				//int cspaceCheck = isGoalInCSpace(finalpathx[i], finalpathy[i]);				
+				/*//int cspaceCheck = isGoalInCSpace(finalpathx[i], finalpathy[i]);				
 				Node scdlast (finalpathx[i+1],finalpathx[i+1],0,0);
 				Node goalpose (finalpathx[i],finalpathy[i],0,0);
 				if(!checkIntersect(goalpose,scdlast)){
@@ -901,7 +901,8 @@ void publishPath(){
 					newpose.pose.orientation.z =(float) atan2((finalpathy[i]-goalpose.pos[0]),(finalpathx[i]-goalpose.pos[1]));
 				}else{
 					newpose.pose.orientation.z += 0;
-				}
+				}*/
+				newpose.pose.orientation.z += 0;
 			}
 			//poses[i] = newpose;
 			allposes.push_back(newpose);
