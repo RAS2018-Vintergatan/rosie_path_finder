@@ -812,7 +812,7 @@ int getBestObject(){
 		runRRT(objStack.Objects[i].x, objStack.Objects[i].y);
 		pathExists.push_back(pathFound);
 		distance = calculatePathDistance();
-		pathDistances.push_back(distance*objStack.Objects[i].value);
+		pathDistances.push_back(distance*(10000-objStack.Objects[i].value));
 	}
 
 	smallest_dist = pathDistances[0];
@@ -931,11 +931,15 @@ int main(int argc, char **argv){
 			
 		if(mapInitialized){
 			if(runrrt){
+				
 				runrrt = 0;
 				ROS_ERROR("RUNRRT");
 				runRRT(goalx, goaly);
 				publishPath();
 				pathInitialized = 1;
+				mapInitializing= 0;
+				objCallInitializing = 0;
+				mapInitialized= 0;
 			}
 			if(pathInitialized){
 				
@@ -956,10 +960,6 @@ int main(int argc, char **argv){
 			continue;
 		}		
 		
-		poseInitializing = 0;
-		objCallInitializing = 0;
-		mapInitializing = 0;
-		mapInitialized= 0;
 		// =0 ;
 		ros::spinOnce();
 		loop_rate.sleep();
