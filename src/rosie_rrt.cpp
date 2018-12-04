@@ -43,10 +43,13 @@
 #include <rosie_map_controller/BatteryPosition.h>
 #include <rosie_map_controller/ObjectPosition.h>
 #include <rosie_map_controller/WallDefinition.h>
+#include <rosie_path_navigator/PathNavigationService.h>
+
+ros::ServiceClient pathClient;
 
 // RRT parameter
 float PI = 3.1415926f;
-float EPSILON = 0.150f;
+float EPSILON = 0.120f;
 float XDIM = 2.40;
 float YDIM = 2.40;
 float startx = 0.200f;
@@ -61,6 +64,7 @@ int mode;
 ros::Publisher path_pub;
 ros::ServiceClient loadClient;
 rosie_map_controller::RequestLoading loadSrv;
+rosie_path_navigator::PathNavigationService pathSrv;
 
 // Target pose
 boost::shared_ptr<geometry_msgs::PoseStamped> targetPose_ptr;
@@ -79,6 +83,8 @@ float batSize = 0.10;
 int batNumber = 4;
 std::vector<float> batPoseX;
 std::vector<float> batPoseY;
+
+char newPathGenerated = 0;
 
 // for target calculations
 int target_num = 0;
@@ -103,7 +109,7 @@ bool pathFound = 0; //for most valuable object search
 float origin[] = {0.0f,0.0f};
 float temp[2];
 float m;
-float r = 0.12f;
+float r = 0.13f;
 float x_1,y_1,x_2,y_2;
 float diffy;
 float diffx;
@@ -175,12 +181,7 @@ bool addToObs(float data[], int obsOrObj){
 }
 
 nav_msgs::Odometry pose;
-bool poseInitializing = 0;
 void currentPoseCallback(nav_msgs::Odometry msg){ // for re-calculation of the path when needed
-	if(poseInitializing){
-		return;
-	}
-	poseInitializing = 1;
     	pose = msg;
 		//pose.pose.pose.position.x = 0.25f;
 		//pose.pose.pose.position.y = 0.40f;
@@ -244,11 +245,10 @@ rosie_map_controller::MapStoring wallStack;
 
 bool mapInitializing = 0;
 void wallCallback2(rosie_map_controller::MapStoring msg){
-	if(mapInitializing){
+	if(mapInitializing && mapInitialized){
 		return;
 	}	
 	mapInitializing = 1;
-	mapInitialized = 0;
 	ALL_WALL.clear();
 	wallStack = msg;
 	float posX;
@@ -294,15 +294,14 @@ void wallCallback2(rosie_map_controller::MapStoring msg){
 			}
 		}
 	}
-	if(!mapInitialized){
-		OFFSET[0] = minX;
-		OFFSET[1] = minY;
-		//ROS_ERROR("Offset %f, %f", OFFSET[0], OFFSET[1]);
-		XDIM = (maxX - minX);
-		YDIM = (maxY - minY);
-		//ROS_ERROR("XDIM %f, YDIM %f", XDIM, YDIM);
-		mapInitialized = 1;
-	}
+
+	OFFSET[0] = minX;
+	OFFSET[1] = minY;
+	//ROS_ERROR("Offset %f, %f", OFFSET[0], OFFSET[1]);
+	XDIM = (maxX - minX);
+	YDIM = (maxY - minY);
+	//ROS_ERROR("XDIM %f, YDIM %f", XDIM, YDIM);
+	mapInitialized = 1;
 }
 
 float oldTargetX = -1;
@@ -621,7 +620,6 @@ float isGoalInCSpace(float x, float y){
 
 float randnum;
 float randZO(float min, float max){
-		srand(ros::Time::now().nsec);
     randnum = (rand() % ((int) max*100))/100.0f; // + (min))/100.0f;
 	  //ROS_INFO("r: %f",r);
 		return randnum;
@@ -794,6 +792,7 @@ void runRRT(float goalPositionX, float goalPositionY){
 		finalpathx.push_back(start.pos[0]);
 		finalpathy.push_back(start.pos[1]);
 		//ROS_INFO("Checkpoint");
+		newPathGenerated = 1;
 }
 
 int getBestObject(){
@@ -830,36 +829,46 @@ float goaly;
 
 bool runrrt = 0;
 bool rrtCallback(rosie_path_finder::rrtService::Request &req, rosie_path_finder::rrtService::Response &res){
-	
-	if(mapInitialized){
-		ROS_ERROR("sth comming");
-		goalx = req.goalx;
-		goaly = req.goaly;
-		mode = req.mode;
-		//ROS_ERROR("goalx %f, goal y %f, mode %d", goalx,goaly, mode);
-		if(mode == 0){
-			target_num = -1;
-			res.tar_num = target_num;
-			runrrt = 1;
-		}else if(mode == 1){
-			target_num = getBestObject();
-			goalx = objStack.Objects[target_num].x;
-			goaly = objStack.Objects[target_num].y;
-			runrrt = 1;
-			res.tar_num = target_num;
-		}
-		pathInitialized == 0;
+	ROS_ERROR("----- sth comming");
+	ros::Rate loop_rate(10);
+	while(!mapInitialized){
+		loop_rate.sleep();
+		ros::spinOnce();
+		ROS_ERROR("----- Map not initialized");
 	}
+		
+	goalx = req.goalx;
+	goaly = req.goaly;
+	mode = req.mode;
+	//ROS_ERROR("goalx %f, goal y %f, mode %d", goalx,goaly, mode);
+	if(mode == 0){
+		target_num = -1;
+		res.tar_num = target_num;
+		runrrt = 1;
+	}else if(mode == 1){
+		target_num = getBestObject();
+		goalx = objStack.Objects[target_num].x;
+		goaly = objStack.Objects[target_num].y;
+		runrrt = 1;
+		res.tar_num = target_num;
+	}
+	pathInitialized == 0;
 	return true;
 }
 
+char onePathPublished = 0;
 void publishPath(){
-
 	geometry_msgs::PoseStamped newpose;
 	allposes.clear();
 
 	ros::Time now = ros::Time::now();
-	path.header.seq=pathseq;
+	if(newPathGenerated){
+		pathseq++;
+		newPathGenerated = 0;
+	}else{
+		return;
+	}
+	path.header.seq=1;//pathseq;
 	path.header.stamp = now;
 	path.header.frame_id = "map";
 	int seq = 0;
@@ -882,13 +891,12 @@ void publishPath(){
 				Node scdlast (finalpathx[i+1],finalpathx[i+1],0,0);
 				Node goalpose (finalpathx[i],finalpathy[i],0,0);
 				if(!checkIntersect(goalpose,scdlast)){
-
-					while(!checkIntersect(goalpose,scdlast)){
-						std::srand(unsigned ( std::time(0) )); 
+					int retries = 0;
+					while(!checkIntersect(goalpose,scdlast) && retries++ < 1000){
 						goalpose.pos[0] = ((float)(std::rand()%15 - 7.5))/100.0f + finalpathx[i];
 						//std::srand(ros::Time::now().toSec()); 
 						goalpose.pos[1] = ((float)(std::rand()%15 - 7.5))/100.0f + finalpathy[i];
-						//ROS_ERROR("%f %f", startposex, startposey);
+						ROS_ERROR("%f %f", goalpose.pos[0], goalpose.pos[1]);
 					}
 					newpose.pose.orientation.z =(float) atan2((finalpathy[i]-goalpose.pos[0]),(finalpathx[i]-goalpose.pos[1]));
 				}else{
@@ -905,7 +913,6 @@ void publishPath(){
 	for(int i = 0; i < allposes.size(); ++i){
 		path.poses[i] = allposes[i];
 	}
-	pathseq++;
 	pathInitialized = 1;
 	//path.poses = poses;
 	//ROS_INFO("Checkpoint");
@@ -914,16 +921,19 @@ void publishPath(){
 
 int main(int argc, char **argv){
 	ros::init(argc, argv, "rosie_rrt");
+	std::srand(unsigned ( std::time(0) )); 
 
 	//target_tfl_ptr.reset(new tf::TransformListener);
 
 	ros::NodeHandle n;
+	pathClient = n.serviceClient<rosie_path_navigator::PathNavigationService>("/rosie_path_service");
+
 	//ros::Subscriber wall_sub = n.subscribe<visualization_msgs::MarkerArray>("/maze_map", 1000, wallCallback);
 	ros::Subscriber wallStack_sub = n.subscribe<rosie_map_controller::MapStoring>("/wall_stack", 1000, wallCallback2);
 	ros::Subscriber objStack_sub = n.subscribe<rosie_map_controller::ObjectStoring>("/object_stack", 1000, objCallback);
 	ros::Subscriber pose_sub = n.subscribe<nav_msgs::Odometry>("/odom", 10, currentPoseCallback);
 	//ros::Subscriber evidence_sub = n.subscribe<rosie_object_detector::RAS_Evidence>("/evidence",10, evidenceCallback);
-	path_pub = n.advertise<nav_msgs::Path>("/rosie_path",1);
+	path_pub = n.advertise<nav_msgs::Path>("/rosie_path",10);
 	ros::ServiceServer rrtService = n.advertiseService<rosie_path_finder::rrtService::Request,
 							 rosie_path_finder::rrtService::Response>("/rrt", rrtCallback);
 	loadClient = n.serviceClient<rosie_map_controller::RequestLoading>("request_load_mapping");
@@ -936,7 +946,6 @@ int main(int argc, char **argv){
 			
 		if(mapInitialized){
 			if(runrrt){
-				
 				runrrt = 0;
 				ROS_ERROR("RUNRRT");
 				runRRT(goalx, goaly);
@@ -947,7 +956,16 @@ int main(int argc, char **argv){
 			}
 			if(pathInitialized){
 				
+				
+				pathSrv.request.path=path;
+				pathSrv.request.id = pathseq;
+				if(pathClient.call(pathSrv)){
+					onePathPublished = 1;
+				}
+		
+				//For visualization
 				path_pub.publish(path);
+				
 				//ROS_INFO("path published");
 			}
 			tf::Transform transform;
