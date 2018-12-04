@@ -533,9 +533,6 @@ float isGoalInCSpace(float x, float y){
 			}
 
 	}
-	if(nc == 0){
-		return m;
-	}
 
 	for(int i =0 ; i<ALL_OBJ.size(); i = i+8){
 			if(mode == 1 && i/8 == target_num){
@@ -576,9 +573,7 @@ float isGoalInCSpace(float x, float y){
 			}
 
 	}
-	if(nc == 0){
-		return m;
-	}
+
 	for(int i =0 ; i<ALL_WALL.size(); i = i+8){
 
 			p1[0] =ALL_WALL[i];
@@ -609,18 +604,19 @@ float isGoalInCSpace(float x, float y){
 				 ints6 = isIntersectingCap(center, A, B);
 			*/
         if( ints1==0 and ints2==0 and ints3==0 and ints4==0 and nc ==1){
-					nc = 0; //is ioutside cspace
+					nc = 0; //is inside cspace
 					break;
 			}else{
-					nc = 1; //is inside cspace
+					nc = 1; //is outside cspace
 			}
 
 	}
-	if(nc == 1){
+	/*if(nc == 1){
 		return m;
 	}else{
 		return 100.0;
-	}
+	}*/
+	return nc;
 }
 
 float randnum;
@@ -652,19 +648,19 @@ void runRRT(float goalPositionX, float goalPositionY){
 		//ROS_INFO("Start: startx %f starty %f", startx, starty);
 		std::vector<Node> nodes;
 		std::vector<Node> q_nearest;
-    std::vector<float> ndist;
-		//Node start (pose.pose.pose.position.x+OFFSET[0], pose.pose.pose.position.y+OFFSET[1],0, 0);
-		Node newpose (pose.pose.pose.position.x, pose.pose.pose.position.y, 0, 0);
+ 		std::vector<float> ndist;
+		float startposex=pose.pose.pose.position.x;
+		float startposey=pose.pose.pose.position.y;
+		ROS_ERROR("pose: %f, %f", pose.pose.pose.position.x, pose.pose.pose.position.y);
 		Node start (pose.pose.pose.position.x, pose.pose.pose.position.y,0, 0);
-		while(!checkIntersect(start, newpose)){
-			std::srand(ros::Time::now().toSec()); 
-			newpose.pos[0] = ((float)(std::rand()%20 - 10.0))/100.0f + start.pos[0];
-			std::srand(ros::Time::now().toSec()); 
-			newpose.pos[0] = ((float)(std::rand()%20 - 10.0))/100.0f + start.pos[1];
-			//ROS_ERROR("%f %f", startposex, startposey);
-		}
-		start = newpose;
-		//ROS_ERROR("pose: %f, %f", pose.pose.pose.position.x, pose.pose.pose.position.y);
+		/*while(!isGoalInCSpace(startposex,startposey)){
+			std::srand(unsigned ( std::time(0) )); 
+			startposex = ((float)(std::rand()%30 - 15.0))/100.0f + pose.pose.pose.position.x;
+			//std::srand(ros::Time::now().toSec()); 
+			startposey = ((float)(std::rand()%30 - 15.0))/100.0f + pose.pose.pose.position.y;
+			ROS_ERROR("%f %f", startposex, startposey);
+		}*/
+		
 		Node goal (0,0,0,0);
 		goal = Node(goalPositionX, goalPositionY, 0,0);
 		nodes.push_back(start);
@@ -812,7 +808,7 @@ int getBestObject(){
 		runRRT(objStack.Objects[i].x, objStack.Objects[i].y);
 		pathExists.push_back(pathFound);
 		distance = calculatePathDistance();
-		pathDistances.push_back(distance*objStack.Objects[i].value);
+		pathDistances.push_back(distance*(10000-objStack.Objects[i].value));
 	}
 
 	smallest_dist = pathDistances[0];
@@ -852,6 +848,7 @@ bool rrtCallback(rosie_path_finder::rrtService::Request &req, rosie_path_finder:
 			runrrt = 1;
 			res.tar_num = target_num;
 		}
+		pathInitialized == 0;
 	}
 	return true;
 }
@@ -881,27 +878,23 @@ void publishPath(){
 			if(i > 0){
 					newpose.pose.orientation.z =(float) atan2((finalpathy[i]-finalpathy[i+1]),(finalpathx[i]-finalpathx[i+1]));
 			}else if( i == 0){
-				Node secondlast (finalpathx[i+1], finalpathy[i+1], 0, 0);
-				Node last (finalpathx[i], finalpathy[i], 0, 0);
-				//int cspaceCheck = isGoalInCSpace(finalpathx[i], finalpathy[i]);
-				//if(checkIntersect(last, secondlast)){
-					//newpose.pose.orientation.z =(float) atan2((finalpathy[i-1]-finalpathy[i]),(finalpathx[i-1]-finalpathx[i]));
-				//	newpose.pose.orientation.z = newpose.pose.orientation.z;
-				//}else{
-					std::srand();
-					last.pos[0] += rand() % 5 / 100.0;
-					std::srand();
-					last.pos[1] += rand() % 5 / 100.0;
-					while(!checkIntersect(last,secondlast)){
-						std::srand();
-						last.pos[0] += std::rand() % 5 / 100.0;
-						std::srand();
-						last.pos[1] += std::rand() % 5 / 100.0;
-					}
-					newpose.pose.orientation.z = std::atan2({secondlast.pos[1]-last.pos[1], secondlast.pos[0]-last.pos[0]);
-				//}
-			}
+				//int cspaceCheck = isGoalInCSpace(finalpathx[i], finalpathy[i]);				
+				Node scdlast (finalpathx[i+1],finalpathx[i+1],0,0);
+				Node goalpose (finalpathx[i],finalpathy[i],0,0);
+				if(!checkIntersect(goalpose,scdlast)){
 
+					while(!checkIntersect(goalpose,scdlast)){
+						std::srand(unsigned ( std::time(0) )); 
+						goalpose.pos[0] = ((float)(std::rand()%15 - 7.5))/100.0f + finalpathx[i];
+						//std::srand(ros::Time::now().toSec()); 
+						goalpose.pos[1] = ((float)(std::rand()%15 - 7.5))/100.0f + finalpathy[i];
+						//ROS_ERROR("%f %f", startposex, startposey);
+					}
+					newpose.pose.orientation.z =(float) atan2((finalpathy[i]-goalpose.pos[0]),(finalpathx[i]-goalpose.pos[1]));
+				}else{
+					newpose.pose.orientation.z += 0;
+				}
+			}
 			//poses[i] = newpose;
 			allposes.push_back(newpose);
 
@@ -943,11 +936,14 @@ int main(int argc, char **argv){
 			
 		if(mapInitialized){
 			if(runrrt){
+				
 				runrrt = 0;
 				ROS_ERROR("RUNRRT");
 				runRRT(goalx, goaly);
 				publishPath();
-				pathInitialized = 1;
+				mapInitializing= 0;
+				objCallInitializing = 0;
+				mapInitialized= 0;
 			}
 			if(pathInitialized){
 				
@@ -968,10 +964,6 @@ int main(int argc, char **argv){
 			continue;
 		}		
 		
-		poseInitializing = 0;
-		objCallInitializing = 0;
-		mapInitializing = 0;
-		mapInitialized= 0;
 		// =0 ;
 		ros::spinOnce();
 		loop_rate.sleep();
