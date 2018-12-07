@@ -103,7 +103,12 @@ int pathInitialized = 0;
 bool pathFound = 0; //for most valuable object search
 
 // **************************
+float certaintyValue = 100;
+float certaintyLimit = 0.012;
 
+void certaintyCallback(std_msgs::Float32 msg){
+	certaintyValue = msg.data;
+}
 
 // addToObs parameter
 float origin[] = {0.0f,0.0f};
@@ -665,7 +670,7 @@ void runRRT(float goalPositionX, float goalPositionY){
 		pathFound = 0;
 		Node q_rand (randZO(0, XDIM),randZO(0,YDIM),0,0);
 		float r1 = 0.1500f;
-		float r2 = 0.050f;
+		float r2 = 0.22f;
 		float temp_dist = 0.0f;
 		float ncoord[2];
 		float smallest_dist = 1.0f;
@@ -852,7 +857,7 @@ bool rrtCallback(rosie_path_finder::rrtService::Request &req, rosie_path_finder:
 		runrrt = 1;
 		res.tar_num = target_num;
 	}
-	pathInitialized == 0;
+	pathInitialized = 0;
 	return true;
 }
 
@@ -930,6 +935,7 @@ int main(int argc, char **argv){
 	pathClient = n.serviceClient<rosie_path_navigator::PathNavigationService>("/rosie_path_service");
 
 	//ros::Subscriber wall_sub = n.subscribe<visualization_msgs::MarkerArray>("/maze_map", 1000, wallCallback);
+	ros::Subscriber loc_cert_sub = n.subscribe<std_msgs::Float32>("/localization_certainty", 10, certaintyCallback);
 	ros::Subscriber wallStack_sub = n.subscribe<rosie_map_controller::MapStoring>("/wall_stack", 1000, wallCallback2);
 	ros::Subscriber objStack_sub = n.subscribe<rosie_map_controller::ObjectStoring>("/object_stack", 1000, objCallback);
 	ros::Subscriber pose_sub = n.subscribe<nav_msgs::Odometry>("/odom", 10, currentPoseCallback);
@@ -945,7 +951,7 @@ int main(int argc, char **argv){
 
     while(ros::ok()){
 			
-		if(mapInitialized){
+		if(mapInitialized && (certaintyValue < certaintyLimit)){
 			if(runrrt){
 				runrrt = 0;
 				ROS_ERROR("RUNRRT");
